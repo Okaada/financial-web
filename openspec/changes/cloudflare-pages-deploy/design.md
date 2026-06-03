@@ -1,81 +1,83 @@
 ## Context
 
-A Finance Web é um SPA (Vite/React) servido na Cloudflare Pages, 100% atrás de auth. O
-cliente HTTP do front (change `auth-transactions-skeleton`, design D1/D2) assume
-**mesmo-origin**: chama caminhos relativos `/api/*`, conta com o browser anexando o cookie
-`fa_session` e não trata CORS. Em dev isso é satisfeito pelo proxy do `vite.config.ts`, que
-faz `rewrite` removendo `/api`. Em produção não há proxy — é preciso uma montagem real na
-Cloudflare que entregue o mesmo contrato de origem.
+A Finance Web é um SPA (Vite/React) servido na Cloudflare, 100% atrás de auth. O cliente
+HTTP do front (change `auth-transactions-skeleton`, design D1/D2) assume **mesmo-origin**:
+chama caminhos relativos `/api/*`, conta com o browser anexando o cookie `fa_session` e não
+trata CORS. Em dev isso é satisfeito pelo proxy do `vite.config.ts`, que faz `rewrite`
+removendo `/api`. Em produção não há proxy — é preciso uma montagem real na Cloudflare que
+entregue o mesmo contrato de origem.
 
 Concretudes fornecidas:
 - Hostname: `financial.gatolandios.com.br` (zone `gatolandios.com.br`).
 - Worker da API já existente na conta: `finance-api`.
 - Backend espera rotas sem prefixo `/api` (CONTRACT.md: `/auth/login`, `/transactions`, …).
-- É um front simples, **sem segredos** no bundle. Deploy via Wrangler/CI.
+- É um front simples, **sem segredos** no bundle. O repositório está conectado à Cloudflare
+  (Workers → Builds), que roda `wrangler deploy`.
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-- Servir o SPA em `financial.gatolandios.com.br` via Pages, publicado por Wrangler/CI.
+- Servir o SPA em `financial.gatolandios.com.br`, publicado por `wrangler deploy`.
 - Rotear `/<host>/api/*` para `finance-api` no mesmo origin, sem CORS, removendo `/api`.
 - Preservar o cookie de sessão por todo o fluxo de login (start → callback → `302 /`).
 - Fallback de SPA e headers de segurança.
-- **Um único projeto, um `node_modules`, um deploy** — a infra mínima é criada uma vez.
+- **Um único Worker, um `node_modules`, um deploy.**
 
 **Non-Goals:**
 
 - Mudar qualquer código do front (origem relativa `/api` já está pronta).
 - Configurar o Worker `finance-api` (vive no repo do backend).
-- Ambientes de preview/staging elaborados; foco em produção (previews do Pages podem
-  existir, mas sem domínio próprio nesta change).
+- Ambientes de preview/staging elaborados; foco em produção.
 - Observabilidade/alertas do deploy.
 - IaC (Terraform): para um front simples sem segredos, não compensa — ver D5.
 
 ## Decisions
 
-### D1 — Proxy `/api/*` como Pages Function (não um Worker separado)
+### D1 — Um único Worker com Static Assets (não Pages, não Worker router separado)
 
-O Pages serve o SPA e uma **Pages Function** (`functions/api/[[path]].ts`) no MESMO projeto
-atende `/api/*`. Pages Functions têm precedência sobre os assets estáticos para os paths
-que casam, então `/api/*` nunca cai no fallback de SPA; todo o resto serve `index.html`.
+O `worker/index.ts` serve o SPA via binding `ASSETS` e atende `/api/*` no mesmo Worker. O
+Worker roda para requisições que não casam um asset estático; nele, `/api/*` é encaminhado à
+Finance API e todo o resto cai em `env.ASSETS.fetch()` (que faz o fallback de SPA).
 
-- **Por que:** é a forma idiomática de mesmo-origin no Pages. Fica tudo num projeto só —
-  sem segundo Worker, sem `node_modules` extra, sem rota de precedência para gerenciar, sem
-  deploy separado. A Function sobe junto com `wrangler pages deploy`.
-- **Alternativa considerada (rejeitada):** um Worker `finance-web-router` standalone com a
-  route `…/api/*` sobrepondo o Pages. Funciona, mas adiciona um projeto inteiro (npm,
-  lockfile, wrangler, tsconfig), uma route a gerenciar e um segundo passo de deploy — custo
-  sem ganho para este caso. Foi a abordagem inicial e foi desfeita por inflar a estrutura.
+- **Por que:** é o modelo unificado atual da Cloudflare e casa com `wrangler deploy` (o que
+  o repo conectado já roda). Fica tudo num projeto só — sem segundo Worker, sem `functions/`,
+  sem `node_modules` extra, sem rota de precedência para gerenciar.
+- **Histórico/alternativas rejeitadas:**
+  - *Pages + Pages Function* (`functions/api/[[path]].ts`): funciona, mas o repo foi
+    conectado via Workers Builds (roda `wrangler deploy`, não `wrangler pages deploy`),
+    causando "missing entry-point". Trocado por Worker + Assets para casar com o deploy.
+  - *Worker router standalone* sobrepondo o Pages: adiciona um projeto inteiro (npm,
+    lockfile, wrangler, tsconfig) e um 2º deploy — custo sem ganho.
 
 ### D2 — Service binding (não fetch público) para a Finance API
 
-A Function encaminha via **service binding** (`env.FINANCE_API.fetch(...)`) para
-`finance-api`, declarado no `wrangler.toml` do Pages, não via `fetch` a uma URL pública.
+O Worker encaminha via **service binding** (`env.FINANCE_API.fetch(...)`) para `finance-api`,
+declarado no `wrangler.toml`, não via `fetch` a uma URL pública.
 
 - **Por que:** chamada interna (Worker→Worker) sem sair para a internet — menor latência,
   sem expor a API num segundo hostname público, e o cookie/redirect fluem como se fosse o
   mesmo servidor. Mantém o backend sem necessidade de CORS.
 - **Alternativa considerada:** `fetch('https://finance-api.<conta>.workers.dev/...')`.
   Rejeitada: hop público desnecessário e superfície extra.
-- **Fallback operacional:** se a conta não aplicar o binding declarado no `wrangler.toml`,
-  configurá-lo uma vez em Pages → Settings → Functions → Service bindings (documentado em
-  DEPLOY.md).
 
-### D3 — Remoção do prefixo `/api` na Function (espelha o dev)
+### D3 — Remoção do prefixo `/api` no Worker (espelha o dev)
 
-A Function reescreve `pathname` removendo o prefixo `/api` antes de encaminhar, exatamente
+O Worker reescreve `pathname` removendo o prefixo `/api` antes de encaminhar, exatamente
 como o `rewrite` do `vite.config.ts`. Assim o backend recebe `/auth/login`, etc.
 
 ```ts
 const url = new URL(request.url)
-url.pathname = url.pathname.replace(/^\/api/, '') || '/'
-return env.FINANCE_API.fetch(new Request(url, request))
+if (url.pathname === '/api' || url.pathname.startsWith('/api/')) {
+  url.pathname = url.pathname.replace(/^\/api/, '') || '/'
+  return env.FINANCE_API.fetch(new Request(url, request))
+}
+return env.ASSETS.fetch(request)
 ```
 
 - **Por que:** o ponto de stripping fica no front-infra (que controlamos), sem pedir
   mudança no backend. Uma única regra, idêntica entre dev e prod, evita divergência.
-- **Trade-off:** a Function precisa repassar método/corpo/headers/redirects fielmente — daí
+- **Trade-off:** o Worker precisa repassar método/corpo/headers/redirects fielmente — daí
   reusar o `Request` original (`new Request(url, request)`), que preserva tudo.
 
 ### D4 — Cookie host-only no mesmo host
@@ -83,54 +85,51 @@ return env.FINANCE_API.fetch(new Request(url, request))
 O backend seta `fa_session` com `Path=/; HttpOnly; Secure; SameSite=Lax` e **sem `Domain`**
 ⇒ host-only para o host da requisição. Como login e callback passam por
 `financial.gatolandios.com.br/api/...`, o host é o mesmo do SPA; o `302 → /` (default
-`POST_LOGIN_REDIRECT`) cai no Pages já autenticado.
+`POST_LOGIN_REDIRECT`) cai nos Static Assets já autenticado.
 
 - **Por que funciona sem CORS/SameSite=None:** tudo é same-site/same-origin do ponto de
   vista do browser. `SameSite=Lax` basta para navegação top-level (o login é exatamente
   isso).
 
-### D5 — Provisionamento mínimo (sem Terraform), deploy via Wrangler/CI
+### D5 — Provisionamento mínimo (sem Terraform)
 
-Não há IaC. O provisionamento é uma ação única e pequena: criar o projeto Pages
-`finance-web` (`wrangler pages project create`, ou o primeiro deploy cria) e anexar o
-domínio custom `financial.gatolandios.com.br`. O deploy contínuo é o próprio
-`wrangler pages deploy dist` a cada push em `main`.
+Não há IaC. O provisionamento é: conectar o repo à Cloudflare Builds e anexar o domínio
+custom `financial.gatolandios.com.br` ao Worker `finance-web` (uma vez). O deploy contínuo é
+`wrangler deploy` a cada push em `main`.
 
 - **Por que:** para um front simples sem segredos, Terraform adicionava cerimônia (provider,
-  state, variáveis) sem payoff — e, do jeito que estava, provisionava o projeto sem ligar no
-  deploy, deixando a pipeline incoerente. A criação única + `wrangler pages deploy` é
-  suficiente e mantém tudo num lugar só.
-- **Alternativa considerada (rejeitada):** Terraform para projeto Pages + domínio + (antes)
-  router/route/DNS. Rejeitada pelo custo/benefício neste contexto. Se um dia houver mais
-  recursos de infra ou múltiplos ambientes, reintroduzir Terraform — mas então **com** a
-  pipeline ligada, não solto.
+  state, variáveis) sem payoff — e, do jeito que estava, provisionava sem ligar no deploy,
+  deixando a pipeline incoerente. A conexão do repo + `wrangler deploy` é suficiente e
+  mantém tudo num lugar só. Se um dia houver mais recursos de infra ou múltiplos ambientes,
+  reintroduzir Terraform — mas então **com** a pipeline ligada, não solto.
 
-### D6 — Pages publicado por Wrangler, não build-on-push do dashboard
+### D6 — Deploy via Cloudflare Builds (repo conectado)
 
-O projeto Pages é "direct upload" (Wrangler), não conectado ao Git pelo dashboard.
+A Cloudflare Builds, a cada push em `main`, roda `npm run build` (gera `dist/`) e então
+`npx wrangler deploy` (bundla o Worker e sobe os assets).
 
-- **Por que:** mantém o build num só lugar (o CI do repo), evita dois sistemas de build
-  divergentes e deixa o gating (lint/typecheck) sob o CI versionado.
+- **Por que:** mantém o build num só lugar, roda no contexto da conta (sem secrets no repo)
+  e o gating (lint/typecheck) pode rodar no build command. Sem um 2º sistema de CI
+  duplicando o deploy.
+- **Pré-requisito:** Build command `npm run build` e Deploy command `npx wrangler deploy`
+  configurados no Worker; o build precede o deploy para `dist/` existir.
 
 ## Risks / Trade-offs
 
 - **Service binding exige `finance-api` na mesma conta** → mitigação: documentar a
   pré-condição; se o nome do Worker mudar, é só o `services.service` no `wrangler.toml`. Se
   ainda não existir, o deploy/binding falha cedo (erro claro), não em runtime silencioso.
-- **Function como ponto único no caminho de `/api`** → mitigação: mantê-la trivial (sem
+- **Worker como ponto único no caminho de `/api`** → mitigação: mantê-lo trivial (sem
   estado, sem lógica de negócio) e repassar tudo fielmente; qualquer bug é de roteação, não
   de dados.
-- **Function vs. fallback de SPA mal ordenados** → mitigação: cenário de teste explícito
-  (`/api/*` vai à Function; resto serve `index.html`) e validação manual pós-deploy do fluxo
-  de login completo.
-- **Binding não aplicado via `wrangler.toml` em algumas contas** → mitigação: fallback
-  documentado de configurá-lo uma vez no dashboard (ver D2).
-- **Secrets de CI** → `CLOUDFLARE_API_TOKEN` (escopo **Pages: Edit**) e
-  `CLOUDFLARE_ACCOUNT_ID` só no cofre do CI. Nunca no repo/bundle.
+- **Ordem de roteação (`/api` vs. assets)** → mitigação: o Worker checa `/api` antes de
+  cair em `env.ASSETS`; cenário de teste explícito (`/api/*` à API; resto serve
+  `index.html`) e validação manual pós-deploy do fluxo de login completo.
+- **Build/Deploy command mal configurados na Cloudflare Builds** → mitigação: documentar os
+  dois comandos em DEPLOY.md; `wrangler deploy --dry-run` valida a config localmente.
 - **`SameSite=Lax` e fluxo OIDC** → o login é navegação top-level (compatível com Lax); se o
   backend algum dia usar POST cross-site no callback, revisitar — fora do controle do front.
 
 ## Open Questions
 
-- Nome final do projeto Pages (assumido `finance-web`) — confirmar convenção da conta.
-- CI: assume-se GitHub Actions (repo Git). Confirmar se o runner/forja é outro.
+- Nome final do Worker (assumido `finance-web`) — confirmar convenção da conta.

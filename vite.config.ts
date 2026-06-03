@@ -2,10 +2,10 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 // Same-origin strategy (see design.md, D1): in production the app and the API are
-// served from the same origin (`app.dominio` + `app.dominio/api/*` via a Pages
-// Function), so the HTTP client only ever uses the relative `/api` prefix and there is
-// no CORS. In dev we reproduce that by proxying `/api` to the local backend — the
-// client code does not change between dev and prod.
+// served from the same origin (`app.dominio` + `app.dominio/api/*` via the single
+// Worker in worker/index.ts), so the HTTP client only ever uses the relative `/api`
+// prefix and there is no CORS. In dev we reproduce that by proxying `/api` to the local
+// backend — the client code does not change between dev and prod.
 //
 // Point the proxy at the local Finance API via VITE_API_PROXY_TARGET; defaults to
 // http://localhost:8787 (the typical Wrangler dev port).

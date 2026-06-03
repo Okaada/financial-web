@@ -1,11 +1,17 @@
-# Cloudflare Pages project: serves the SPA from `dist/` and runs the same-origin proxy
-# in `functions/api/[[path]].ts`. One project, one deploy (`wrangler pages deploy dist`).
+# Single Cloudflare Worker (Workers + Static Assets): serves the SPA from `dist/` and
+# proxies `/api/*` to the Finance API. Deployed with `wrangler deploy`.
 name = "finance-web"
+main = "worker/index.ts"
 compatibility_date = "2026-06-01"
-pages_build_output_dir = "dist"
 
-# Internal Worker-to-Worker binding the Pages Function uses to reach the Finance API
-# (no public hop, no CORS). The `finance-api` Worker must already exist in this account.
+# Static assets (the SPA build). SPA fallback serves index.html for client-side routes.
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+# Internal Worker-to-Worker binding to reach the Finance API (no public hop, no CORS).
+# The `finance-api` Worker must already exist in this account.
 [[services]]
 binding = "FINANCE_API"
 service = "finance-api"

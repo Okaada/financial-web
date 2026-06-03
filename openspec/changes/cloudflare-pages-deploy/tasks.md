@@ -1,28 +1,29 @@
-## 1. Assets de SPA no Pages
+## 1. Assets do SPA
 
-- [x] 1.1 Criar `public/_redirects` com fallback de SPA (`/* /index.html 200`)
-- [x] 1.2 Criar `public/_headers` com headers de segurança (HSTS, `X-Content-Type-Options: nosniff`, `Referrer-Policy`) complementando a CSP do `index.html`
-- [x] 1.3 Criar `wrangler.toml` do Pages (`pages_build_output_dir = "dist"`, `name = "finance-web"`, `compatibility_date`)
+- [x] 1.1 Fallback de SPA via `not_found_handling = "single-page-application"` no `wrangler.toml` (substitui `public/_redirects`)
+- [x] 1.2 Criar `public/_headers` com headers de segurança (HSTS, `X-Content-Type-Options: nosniff`, `Referrer-Policy`) complementando a CSP do `index.html` (copiado para `dist/_headers`)
+- [x] 1.3 `wrangler.toml` do Worker (`main = "worker/index.ts"`, `[assets] directory = "./dist"`, `compatibility_date`)
 
-## 2. Proxy mesmo-origin (Pages Function)
+## 2. Proxy mesmo-origin (Worker + Static Assets)
 
-- [x] 2.1 Criar `functions/api/[[path]].ts` que remove o prefixo `/api` e encaminha via service binding `FINANCE_API` (preservando método/corpo/headers/redirects)
-- [x] 2.2 Declarar o service binding `FINANCE_API → finance-api` no `wrangler.toml` do Pages (sem Worker separado, sem rota de precedência)
-- [x] 2.3 Adicionar `@cloudflare/workers-types` (apenas tipos) para a Function; nenhum projeto/`node_modules` adicional
+- [x] 2.1 Criar `worker/index.ts`: encaminha `/api/*` (prefixo removido) via service binding `FINANCE_API`; demais rotas → `env.ASSETS` (SPA)
+- [x] 2.2 Declarar os bindings `FINANCE_API → finance-api` e `ASSETS` no `wrangler.toml` (um Worker só, sem projeto extra)
+- [x] 2.3 Adicionar `@cloudflare/workers-types` (apenas tipos) para o Worker; nenhum `node_modules` adicional
+- [x] 2.4 Validar a config com `wrangler deploy --dry-run` (entry-point + assets + bindings ok)
 
-## 3. CI de deploy (Wrangler)
+## 3. Deploy (Cloudflare Builds)
 
-- [x] 3.1 Criar workflow de CI (push em `main`) que roda `npm ci`, `npm run build` e gating (`typecheck`/`lint`)
-- [x] 3.2 Publicar com `wrangler pages deploy dist --project-name finance-web` (a Function e o binding sobem junto, sem passo separado)
-- [x] 3.3 Usar `CLOUDFLARE_API_TOKEN` (escopo **Pages: Edit**) e `CLOUDFLARE_ACCOUNT_ID` como secrets do CI; nenhum segredo no bundle/repo
+- [x] 3.1 Repositório conectado à Cloudflare (Workers → Builds); deploy no push para `main`
+- [x] 3.2 Build command `npm run build` e deploy command `npx wrangler deploy` nas configurações de Build
+- [x] 3.3 Sem secrets no repo/bundle — a Cloudflare Builds roda no contexto da conta
 
 ## 4. Provisionamento (uma vez)
 
-- [x] 4.1 Documentar a criação única do projeto Pages `finance-web` (`wrangler pages project create` ou primeiro deploy) e a anexação do domínio custom `financial.gatolandios.com.br`
-- [x] 4.2 Sem Terraform: para um front simples sem segredos, o provisionamento é a criação única do projeto + domínio; o deploy é o próprio `wrangler pages deploy`
+- [x] 4.1 Documentar a anexação do domínio custom `financial.gatolandios.com.br` ao Worker `finance-web`
+- [x] 4.2 Sem Terraform: front simples sem segredos; o provisionamento é a conexão do repo + domínio, o deploy é o próprio `wrangler deploy`
 
 ## 5. Documentação e verificação
 
-- [x] 5.1 Documentar (DEPLOY.md) a pré-condição do Worker `finance-api`, o service binding, os secrets de CI e o deploy único
-- [ ] 5.2 Verificar: `/api/*` é atendido pela Function (responde da API); demais rotas servem `index.html`
+- [x] 5.1 Documentar (DEPLOY.md) a pré-condição do Worker `finance-api`, os bindings, os comandos de Build e o domínio custom
+- [ ] 5.2 Verificar: `/api/*` responde da API; demais rotas servem `index.html`
 - [ ] 5.3 Verificar o fluxo de login completo em produção (start → callback → `302 /` autenticado) e logout, confirmando cookie `fa_session` no host

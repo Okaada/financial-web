@@ -2,9 +2,9 @@ schema: spec-driven
 
 context: |
   Frontend web responsivo (mobile-first) da Finance API — SPA React (Vite),
-  TypeScript. Deploy na Cloudflare Pages via Wrangler/CI; o proxy mesmo-origin de
-  /api/* é uma Pages Function no mesmo projeto (sem Worker separado, sem Terraform).
-  App 100% atrás de autenticação (sem SSR, sem SEO).
+  TypeScript. Deploy na Cloudflare como um único Worker (Workers + Static Assets) via
+  `wrangler deploy`; o proxy mesmo-origin de /api/* é feito nesse mesmo Worker (sem
+  projeto separado, sem Terraform). App 100% atrás de autenticação (sem SSR, sem SEO).
 
   Contrato: este front CONSOME a Finance API (repo separado). O contrato real, como
   implementado, está em CONTRACT.md — fonte da verdade para endpoints, shapes e status

@@ -3,7 +3,7 @@
 //
 // NOTE (CONTRACT.md §11, divergence #1): the real auth routes are `/auth/login` and
 // `/auth/logout` — there is NO `/auth/google/start`. Through the same-origin proxy (the
-// Pages Function in functions/api/) they are reachable as `/api/auth/login` and
+// Worker in worker/index.ts) they are reachable as `/api/auth/login` and
 // `/api/auth/logout`.
 
 export const API_PREFIX = '/api'
