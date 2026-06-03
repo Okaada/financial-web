@@ -119,6 +119,33 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* Ambient background: soft radial blobs behind everything. Decorative (no markup, no
+   pointer events), derived from theme tokens at very low opacity so text contrast holds in
+   both light and dark. Static — no motion to disable. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      60vmax 60vmax at 10% -8%,
+      color-mix(in srgb, var(--primary) 13%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      48vmax 48vmax at 102% 4%,
+      color-mix(in srgb, var(--success) 10%, transparent),
+      transparent 55%
+    ),
+    radial-gradient(
+      52vmax 52vmax at 88% 108%,
+      color-mix(in srgb, var(--primary) 9%, transparent),
+      transparent 60%
+    );
+}
+
 h1 {
   font-size: var(--text-xl);
   line-height: 1.2;
@@ -1153,4 +1180,75 @@ h3 {
 .login-google:hover {
   background: var(--surface-2);
   border-color: var(--text-muted);
+}
+
+/* ------------------------------------------------------------------- Effects */
+/* Hover elevation on card-like surfaces. transform + box-shadow only, so neighbours
+   never reflow. Reduced-motion zeroes the transitions globally. */
+.transaction,
+.category,
+.dash-block,
+.audit-event {
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.transaction:hover,
+.category:hover,
+.dash-block:hover,
+.audit-event:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+/* Subtle press feedback on buttons / actionable controls. */
+.btn:active:not(:disabled),
+.login-google:active,
+.sidebar-link:active,
+.theme-option:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+/* Short, gentle entrance for views and cards. */
+@keyframes fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.screen,
+.login-card {
+  animation: fade-rise 0.28s ease both;
+}
+
+/* Light stagger for the dashboard blocks so they settle in sequence. */
+.dash-grid > .dash-block {
+  animation: fade-rise 0.3s ease both;
+}
+
+.dash-grid > .dash-block:nth-child(2) {
+  animation-delay: 0.05s;
+}
+
+.dash-grid > .dash-block:nth-child(3) {
+  animation-delay: 0.1s;
+}
+
+.dash-grid > .dash-block:nth-child(4) {
+  animation-delay: 0.15s;
+}
+
+/* Reduced motion: drop the entrance animations entirely (the global rule only shortens
+   duration, which — combined with animation-delay + fill `both` — would briefly hide
+   staggered blocks). `animation: none` renders them at their natural, visible state. */
+@media (prefers-reduced-motion: reduce) {
+  .screen,
+  .login-card,
+  .dash-grid > .dash-block {
+    animation: none !important;
+  }
 }
