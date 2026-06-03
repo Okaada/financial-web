@@ -12,3 +12,14 @@ export const LOGIN_PATH = `${API_PREFIX}/auth/login`
 export const LOGOUT_PATH = `${API_PREFIX}/auth/logout`
 export const TRANSACTIONS_PATH = `${API_PREFIX}/transactions`
 export const CATEGORIES_PATH = `${API_PREFIX}/categories`
+
+export const RECURRING_TEMPLATES_PATH = `${API_PREFIX}/recurring-templates`
+export const RECURRING_OCCURRENCES_PATH = `${API_PREFIX}/recurring-occurrences`
+
+// Resource-scoped paths (ids are URL-encoded; a 404 here means "not found / not owned").
+export const transactionPath = (id: string) => `${TRANSACTIONS_PATH}/${encodeURIComponent(id)}`
+export const categoryPath = (id: string) => `${CATEGORIES_PATH}/${encodeURIComponent(id)}`
+export const categoryArchivePath = (id: string) => `${categoryPath(id)}/archive`
+export const recurringTemplatePath = (id: string) =>
+  `${RECURRING_TEMPLATES_PATH}/${encodeURIComponent(id)}`
+export const recurringConfirmPath = (id: string) => `${recurringTemplatePath(id)}/confirm`

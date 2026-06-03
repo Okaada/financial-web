@@ -1,40 +1,41 @@
-// Transaction form — create and edit (web-transactions "Criar transação" / "Editar
-// transação"; design D2). Sends amount in cents; surfaces 400 errors (field validation
-// and invalid/archived category) next to the form without losing input.
-//
-// Edit mode is a FULL REPLACE (PUT): the body is built from the existing resource so
-// fields the form does not edit (notably `cardId`) are preserved, not wiped.
+// Recurring template form — create and edit (web-recurring-templates spec; design D4).
+// Sends amount in cents; surfaces 400 (field validation and invalid/archived category)
+// next to the form without losing input. PUT uses the same body shape as POST.
 
 import { useState, type FormEvent } from 'react'
 import { ApiError } from '../../api/client'
 import type {
-  CreateTransactionInput,
-  Transaction,
+  CreateRecurringTemplateInput,
+  RecurringTemplate,
   TransactionType,
-  UpdateTransactionInput,
 } from '../../api/types'
 import { centsToInput, parseToCents } from '../../lib/money'
-import { createTransaction, updateTransaction } from './api'
-import { CategorySelect } from './CategorySelect'
+import { CategorySelect } from '../transactions/CategorySelect'
+import { createTemplate, updateTemplate } from './api'
 
-interface TransactionFormProps {
-  /** When provided, the form edits this transaction (PUT); otherwise it creates (POST). */
-  initial?: Transaction
-  onSaved: (transaction: Transaction) => void
+interface RecurringTemplateFormProps {
+  initial?: RecurringTemplate
+  onSaved: (template: RecurringTemplate) => void
   onCancel?: () => void
 }
 
 const DEFAULT_CURRENCY = 'BRL'
 
-export function TransactionForm({ initial, onSaved, onCancel }: TransactionFormProps) {
+export function RecurringTemplateForm({ initial, onSaved, onCancel }: RecurringTemplateFormProps) {
   const editing = initial !== undefined
 
   const [type, setType] = useState<TransactionType>(initial?.type ?? 'expense')
   const [amountInput, setAmountInput] = useState(initial ? centsToInput(initial.amount) : '')
   const [currency, setCurrency] = useState(initial?.currency ?? DEFAULT_CURRENCY)
-  const [occurredOn, setOccurredOn] = useState(initial?.occurredOn ?? '')
-  const [categoryId, setCategoryId] = useState(initial?.categoryId ?? '')
+  const [dayOfMonth, setDayOfMonth] = useState(initial ? String(initial.dayOfMonth) : '1')
+  const [intervalMonths, setIntervalMonths] = useState(
+    initial ? String(initial.intervalMonths) : '1',
+  )
+  const [startDate, setStartDate] = useState(initial?.startDate ?? '')
+  const [endDate, setEndDate] = useState(initial?.endDate ?? '')
   const [description, setDescription] = useState(initial?.description ?? '')
+  const [categoryId, setCategoryId] = useState(initial?.categoryId ?? '')
+  const [active, setActive] = useState(initial?.active ?? true)
 
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
@@ -50,59 +51,58 @@ export function TransactionForm({ initial, onSaved, onCancel }: TransactionFormP
       setFormError('Valor inválido. Informe um número (ex.: 10,00).')
       return
     }
-    if (occurredOn.trim() === '') {
-      setFormError('Informe a data (occurredOn).')
+    const day = Number(dayOfMonth)
+    if (!Number.isInteger(day) || day < 1 || day > 31) {
+      setFormError('Dia do mês deve ser um inteiro entre 1 e 31.')
+      return
+    }
+    const interval = Number(intervalMonths)
+    if (!Number.isInteger(interval) || interval < 1) {
+      setFormError('Intervalo (meses) deve ser um inteiro ≥ 1.')
+      return
+    }
+    if (startDate.trim() === '') {
+      setFormError('Informe a data de início (startDate).')
       return
     }
 
+    const input: CreateRecurringTemplateInput = {
+      type,
+      amount, // cents
+      currency,
+      dayOfMonth: day,
+      intervalMonths: interval,
+      startDate,
+      active,
+    }
+    if (endDate.trim() !== '') input.endDate = endDate
+    if (description.trim() !== '') input.description = description.trim()
+    if (categoryId !== '') input.categoryId = categoryId
+
     setSubmitting(true)
     try {
-      let saved: Transaction
-      if (editing) {
-        // Full replace: send categoryId as value-or-null and preserve cardId from the
-        // existing resource (the form does not edit it). description omitted -> cleared.
-        const body: UpdateTransactionInput = {
-          type,
-          amount,
-          currency,
-          occurredOn,
-          categoryId: categoryId === '' ? null : categoryId,
-          cardId: initial.cardId,
-        }
-        if (description.trim() !== '') body.description = description.trim()
-        saved = await updateTransaction(initial.id, body)
-      } else {
-        const body: CreateTransactionInput = { type, amount, currency, occurredOn }
-        if (categoryId !== '') body.categoryId = categoryId
-        if (description.trim() !== '') body.description = description.trim()
-        saved = await createTransaction(body)
-      }
-
+      const saved = editing
+        ? await updateTemplate(initial.id, input)
+        : await createTemplate(input)
       onSaved(saved)
       if (!editing) {
-        // Reset value fields; keep type/currency for fast repeated entry.
         setAmountInput('')
-        setOccurredOn('')
-        setCategoryId('')
         setDescription('')
+        setCategoryId('')
       }
     } catch (err) {
-      // 401 is handled centrally (redirect). Here we only get 400/404/5xx.
       if (err instanceof ApiError && err.status === 400) {
-        // A body-referenced categoryId that is invalid/archived/not-owned returns 400
-        // (CONTRACT.md §1) — surface it on the category field; existence is never
-        // confirmed, so we just ask the user to pick another.
         if (/categor/i.test(err.message) || /category/i.test(err.code)) {
           setCategoryError(err.message)
         } else {
           setFormError(err.message)
         }
       } else if (err instanceof ApiError && err.status === 404) {
-        setFormError('Transação não encontrada.')
+        setFormError('Recorrente não encontrado.')
       } else if (err instanceof ApiError) {
         setFormError(err.message)
       } else {
-        setFormError('Falha ao salvar a transação. Tente novamente.')
+        setFormError('Falha ao salvar o recorrente. Tente novamente.')
       }
     } finally {
       setSubmitting(false)
@@ -111,7 +111,7 @@ export function TransactionForm({ initial, onSaved, onCancel }: TransactionFormP
 
   return (
     <form className="transaction-form" onSubmit={handleSubmit}>
-      <h2>{editing ? 'Editar transação' : 'Nova transação'}</h2>
+      <h2>{editing ? 'Editar recorrente' : 'Novo recorrente'}</h2>
 
       <label>
         Tipo
@@ -149,11 +149,44 @@ export function TransactionForm({ initial, onSaved, onCancel }: TransactionFormP
       </label>
 
       <label>
-        Data
+        Dia do mês
+        <input
+          type="number"
+          min={1}
+          max={31}
+          value={dayOfMonth}
+          onChange={(e) => setDayOfMonth(e.target.value)}
+          disabled={submitting}
+        />
+      </label>
+
+      <label>
+        Intervalo (meses)
+        <input
+          type="number"
+          min={1}
+          value={intervalMonths}
+          onChange={(e) => setIntervalMonths(e.target.value)}
+          disabled={submitting}
+        />
+      </label>
+
+      <label>
+        Início
         <input
           type="date"
-          value={occurredOn}
-          onChange={(e) => setOccurredOn(e.target.value)}
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          disabled={submitting}
+        />
+      </label>
+
+      <label>
+        Fim (opcional)
+        <input
+          type="date"
+          value={endDate}
+          onChange={(e) => setEndDate(e.target.value)}
           disabled={submitting}
         />
       </label>
@@ -171,6 +204,16 @@ export function TransactionForm({ initial, onSaved, onCancel }: TransactionFormP
           onChange={(e) => setDescription(e.target.value)}
           disabled={submitting}
         />
+      </label>
+
+      <label className="checkbox">
+        <input
+          type="checkbox"
+          checked={active}
+          onChange={(e) => setActive(e.target.checked)}
+          disabled={submitting}
+        />
+        Ativo
       </label>
 
       {formError && (

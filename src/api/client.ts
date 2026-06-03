@@ -121,3 +121,12 @@ export function apiGet<T>(path: string, query?: RequestOptions['query']): Promis
 export function apiPost<T>(path: string, body?: unknown): Promise<T> {
   return request<T>(path, { method: 'POST', body })
 }
+
+export function apiPut<T>(path: string, body?: unknown): Promise<T> {
+  return request<T>(path, { method: 'PUT', body })
+}
+
+/** DELETE returns 204 No Content — request() resolves with undefined. */
+export function apiDelete(path: string): Promise<void> {
+  return request<void>(path, { method: 'DELETE' })
+}

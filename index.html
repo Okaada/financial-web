@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- App 100% atrás de autenticação: sem SEO, sem indexação. -->
     <meta name="robots" content="noindex, nofollow" />
+    <!-- Soft light/dark theme — matches the CSS tokens (prefers-color-scheme). -->
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#f4f6f9" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#14161b" media="(prefers-color-scheme: dark)" />
     <!--
       CSP restritiva (design.md, Riscos): mesmo com cookie HttpOnly, um XSS faria
       requisição autenticada — então não permitimos origem de script externa nem

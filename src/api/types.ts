@@ -31,6 +31,30 @@ export interface CreateTransactionInput {
   description?: string
 }
 
+/**
+ * Body for PUT /transactions/:id — full replace (CONTRACT.md §4). Unlike create, the
+ * relational ids are sent explicitly as value-or-null so they are not wiped on update:
+ * `categoryId`/`cardId` are preserved from the existing resource when not edited.
+ */
+export interface UpdateTransactionInput {
+  type: TransactionType
+  amount: number // cents (integer)
+  currency: string
+  occurredOn: string // YYYY-MM-DD
+  categoryId: string | null
+  cardId: string | null
+  description?: string
+}
+
+/** Query filters for GET /transactions (CONTRACT.md §4); empty values are omitted. */
+export interface TransactionFilters {
+  type?: TransactionType
+  categoryId?: string
+  cardId?: string
+  from?: string // YYYY-MM-DD
+  to?: string // YYYY-MM-DD
+}
+
 export type CategoryType = 'income' | 'expense' | 'investment'
 
 /** CONTRACT.md §5 — Category resource (all fields cleartext). */
@@ -41,6 +65,86 @@ export interface Category {
   archived: boolean
   createdAt: string
   updatedAt: string
+}
+
+/** Body for POST /categories (CONTRACT.md §5). */
+export interface CreateCategoryInput {
+  name: string
+  type: CategoryType
+}
+
+/** Body for PUT /categories/:id — only `name` (type is immutable; sending it → 400). */
+export interface RenameCategoryInput {
+  name: string
+}
+
+/** Query filters for GET /categories (CONTRACT.md §5); empty values are omitted. */
+export interface CategoryFilters {
+  type?: CategoryType
+  archived?: boolean
+}
+
+/** CONTRACT.md §6 — Recurring template. `amount` in cents; `type` is income|expense. */
+export interface RecurringTemplate {
+  id: string
+  description: string | null // DECRYPTED for the owner
+  amount: number // cents (integer)
+  currency: string
+  type: TransactionType
+  categoryId: string | null
+  dayOfMonth: number // 1-31
+  intervalMonths: number // >= 1
+  startDate: string // YYYY-MM-DD
+  endDate: string | null // YYYY-MM-DD
+  active: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+/** Body for POST/PUT /recurring-templates (PUT is same shape; amount in cents). */
+export interface CreateRecurringTemplateInput {
+  type: TransactionType
+  amount: number // cents (integer)
+  currency: string
+  dayOfMonth: number
+  intervalMonths: number
+  startDate: string // YYYY-MM-DD
+  endDate?: string // YYYY-MM-DD
+  description?: string
+  categoryId?: string
+  active?: boolean
+}
+
+/**
+ * CONTRACT.md §6 — Occurrence, computed at request time and NOT persisted. Has no `id`
+ * of its own; the unique key is `(recurringTemplateId, competence)`.
+ */
+export interface RecurringOccurrence {
+  recurringTemplateId: string
+  competence: string // YYYY-MM
+  date: string // YYYY-MM-DD
+  amount: number // cents (integer)
+  currency: string
+  type: TransactionType
+  categoryId: string | null
+  confirmed: boolean
+  transactionId: string | null
+}
+
+/** Body for POST /recurring-templates/:id/confirm. */
+export interface ConfirmInput {
+  competence: string // YYYY-MM
+}
+
+/** Query filters for GET /recurring-templates; empty values are omitted. */
+export interface RecurringTemplateFilters {
+  active?: boolean
+}
+
+/** Query for GET /recurring-occurrences — both required (CONTRACT.md §6). */
+export interface OccurrenceRange {
+  from: string // YYYY-MM-DD
+  to: string // YYYY-MM-DD
 }
 
 /** Standard list envelope used by every collection endpoint. */

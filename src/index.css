@@ -1,7 +1,74 @@
+/* ============================================================================
+   Finance Web — design system (web-design-system spec).
+   Light, soft theme by default; a soft dark variant kicks in automatically via
+   prefers-color-scheme. Everything is driven by the tokens in :root, so the whole
+   app re-themes from one place. No external fonts/resources (CSP-friendly).
+   ============================================================================ */
+
 :root {
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  /* Color — light, soft */
+  --bg: #f4f6f9;
+  --surface: #ffffff;
+  --surface-2: #eef1f6;
+  --border: #e3e7ee;
+  --text: #1f2430;
+  --text-muted: #6b7280;
+  --primary: #5b7cfa;
+  --primary-hover: #4a6bf0;
+  --primary-contrast: #ffffff;
+  --primary-soft: #eef2ff;
+  --success: #1f9d68;
+  --success-soft: #e7f6ee;
+  --danger: #db5a52;
+  --danger-hover: #c94a43;
+  --danger-soft: #fdecea;
+  --warning-soft: #fdf4e3;
+  --ring: rgba(91, 124, 250, 0.45);
+
+  /* Spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+
+  /* Radius / shadow / type */
+  --radius: 10px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+  --shadow-sm: 0 1px 2px rgba(20, 28, 46, 0.06), 0 1px 3px rgba(20, 28, 46, 0.04);
+  --shadow-md: 0 6px 24px rgba(20, 28, 46, 0.1);
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --maxw: 760px;
+
   color-scheme: light dark;
+  font-family: var(--font);
   line-height: 1.5;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14161b;
+    --surface: #1d2027;
+    --surface-2: #24282f;
+    --border: #2d323b;
+    --text: #e6e8ec;
+    --text-muted: #99a1ad;
+    --primary: #7d97ff;
+    --primary-hover: #93a8ff;
+    --primary-contrast: #0b0d11;
+    --primary-soft: #232a44;
+    --success: #4cbf8a;
+    --success-soft: #16271f;
+    --danger: #ef8079;
+    --danger-hover: #f3938d;
+    --danger-soft: #2c1d1c;
+    --warning-soft: #2a2415;
+    --ring: rgba(125, 151, 255, 0.5);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 8px 28px rgba(0, 0, 0, 0.5);
+  }
 }
 
 * {
@@ -10,103 +77,489 @@
 
 body {
   margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-/* Mobile-first: a single readable column. */
-.screen {
-  max-width: 640px;
+h1 {
+  font-size: 1.5rem;
+  margin: 0 0 var(--space-4);
+}
+
+h2 {
+  font-size: 1.05rem;
+  margin: 0 0 var(--space-2);
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* ----------------------------------------------------------------- Navigation */
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: saturate(1.2) blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-inner {
+  max-width: var(--maxw);
   margin: 0 auto;
-  padding: 1rem;
-}
-
-.screen-header {
+  padding: var(--space-3) var(--space-4);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--space-3);
 }
 
+.nav-views {
+  display: flex;
+  gap: var(--space-1);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.nav-views::-webkit-scrollbar {
+  display: none;
+}
+
+.nav-link {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+
+.nav-link:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+.nav-link.active {
+  color: var(--primary-contrast);
+  background: var(--primary);
+}
+
+/* --------------------------------------------------------------- Screen / layout */
+.screen {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: var(--space-5) var(--space-4) var(--space-6);
+}
+
+/* -------------------------------------------------------------------- Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s;
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn-sm {
+  min-height: 34px;
+  padding: 0 var(--space-3);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: var(--primary-contrast);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.btn-ghost {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.btn-danger {
+  background: transparent;
+  border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+  color: var(--danger);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+}
+
+/* Submit / filter actions inherit the primary look by context. */
+.transaction-form .form-actions button[type='submit'],
+.filters button[type='submit'] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  background: var(--primary);
+  color: var(--primary-contrast);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.filters button[type='submit'] {
+  min-height: 38px;
+}
+
+.transaction-form .form-actions button[type='submit']:hover:not(:disabled),
+.filters button[type='submit']:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.transaction-form .form-actions button[type='submit']:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.state-error button {
+  min-height: 40px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.state-error button:hover {
+  background: var(--surface-2);
+}
+
+/* Text-style button (links, secondary row actions). */
 .link {
   background: none;
   border: none;
-  color: inherit;
-  text-decoration: underline;
+  color: var(--primary);
+  font: inherit;
+  font-weight: 500;
   cursor: pointer;
-  padding: 0;
+  padding: var(--space-1) var(--space-2);
+  border-radius: 6px;
+  transition: background 0.15s;
 }
 
+.link:hover {
+  background: var(--surface-2);
+}
+
+.link.danger {
+  color: var(--danger);
+}
+
+/* ---------------------------------------------------------------------- Forms */
 .transaction-form {
   display: grid;
-  gap: 0.75rem;
-  padding: 1rem;
-  border: 1px solid color-mix(in srgb, currentColor 20%, transparent);
-  border-radius: 8px;
-  margin-bottom: 1.5rem;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: var(--space-5);
 }
 
 .transaction-form label {
   display: grid;
-  gap: 0.25rem;
+  gap: var(--space-1);
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.transaction-form label.checkbox {
+  grid-auto-flow: column;
+  justify-content: start;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text);
+}
+
+.transaction-form label.checkbox input {
+  width: auto;
+  min-height: auto;
 }
 
 .transaction-form input,
-.transaction-form select {
-  padding: 0.5rem;
+.transaction-form select,
+.filters input,
+.filters select {
+  min-height: 42px;
+  padding: 0 var(--space-3);
   font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.transaction-form input:focus,
+.transaction-form select:focus,
+.filters input:focus,
+.filters select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+/* Two columns on wider screens; full-width rows stay full-width. */
+@media (min-width: 720px) {
+  .transaction-form {
+    grid-template-columns: 1fr 1fr;
+  }
+  .transaction-form h2,
+  .transaction-form .field,
+  .transaction-form .form-error,
+  .transaction-form .form-actions,
+  .transaction-form label.checkbox {
+    grid-column: 1 / -1;
+  }
 }
 
 .field {
   display: grid;
-  gap: 0.25rem;
+  gap: var(--space-1);
 }
 
 .field-error,
 .form-error {
-  color: #c0392b;
+  color: var(--danger);
   font-size: 0.875rem;
+}
+
+.form-error {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  background: var(--danger-soft);
+  border-radius: var(--radius);
 }
 
 .hint {
   font-size: 0.8rem;
-  opacity: 0.7;
+  color: var(--text-muted);
 }
 
+.form-actions {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+/* -------------------------------------------------------------------- Filters */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: end;
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: var(--space-4);
+}
+
+.filters label {
+  display: grid;
+  gap: var(--space-1);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* -------------------------------------------------------------------- Banners */
+.notice,
+.banner {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+  font-size: 0.9rem;
+  border: 1px solid var(--border);
+  background: var(--primary-soft);
+  color: var(--text);
+}
+
+/* -------------------------------------------------------------------- States */
 .state {
-  padding: 1.5rem;
+  padding: var(--space-6) var(--space-4);
   text-align: center;
-  opacity: 0.85;
+  color: var(--text-muted);
 }
 
-.transaction-list {
+.state-empty {
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.state-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+.state-loading::before {
+  content: '';
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.state-error {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: center;
+  padding: var(--space-5);
+  background: var(--danger-soft);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+  border-radius: var(--radius-lg);
+  color: var(--text);
+}
+
+/* --------------------------------------------------------------------- Lists */
+.transaction-list,
+.category-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 0.5rem;
+  gap: var(--space-3);
 }
 
-.transaction {
+.transaction,
+.category {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 1rem;
-  align-items: baseline;
-  padding: 0.75rem;
-  border: 1px solid color-mix(in srgb, currentColor 15%, transparent);
-  border-radius: 6px;
+  gap: var(--space-2) var(--space-4);
+  align-items: center;
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+.transaction-expense {
+  border-left-color: color-mix(in srgb, var(--danger) 55%, transparent);
+}
+
+.transaction-income {
+  border-left-color: color-mix(in srgb, var(--success) 55%, transparent);
 }
 
 .transaction-amount {
-  font-weight: 600;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .transaction-expense .transaction-amount {
-  color: #c0392b;
+  color: var(--danger);
 }
 
 .transaction-income .transaction-amount {
-  color: #1e8449;
+  color: var(--success);
+}
+
+.transaction-type {
+  font-size: 0.85rem;
+  color: var(--text-muted);
 }
 
 .transaction-date {
-  opacity: 0.7;
-  font-size: 0.875rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.transaction-description {
+  flex-basis: 100%;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.transaction-actions,
+.category-actions {
+  display: flex;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+
+.category-name {
+  font-weight: 600;
+}
+
+.category-type {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* -------------------------------------------------------------------- Badges */
+.badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0.15rem 0.55rem;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  color: var(--text-muted);
 }

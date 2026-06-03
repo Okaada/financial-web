@@ -90,6 +90,12 @@ O backend seta `fa_session` com `Path=/; HttpOnly; Secure; SameSite=Lax` e **sem
 - **Por que funciona sem CORS/SameSite=None:** tudo é same-site/same-origin do ponto de
   vista do browser. `SameSite=Lax` basta para navegação top-level (o login é exatamente
   isso).
+- **Pré-condição no backend (crítica):** como o Worker remove o prefixo `/api`, o backend
+  não sabe que está atrás de `/api` — então o `redirect_uri` do OIDC tem que ser a URL
+  pública explícita `https://financial.gatolandios.com.br/api/auth/callback` (host do front,
+  com `/api`), registrada também no OAuth Client. Se o callback voltar por outro host (ex.:
+  o domínio do backend), os cookies transientes `fa_oidc_*` (host-only do front) não são
+  enviados e o login falha com `401 "invalid login state"`. Ver DEPLOY.md → Pré-condições.
 
 ### D5 — Provisionamento mínimo (sem Terraform); domínio no `wrangler.toml`
 

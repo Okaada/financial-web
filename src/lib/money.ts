@@ -42,3 +42,11 @@ export function parseToCents(input: string): number | null {
   // Round to avoid float artifacts (e.g. 10.10 * 100 === 1009.9999...).
   return Math.round(value * 100)
 }
+
+/**
+ * Render integer cents as an editable input string for the form (pt-BR decimal comma),
+ * e.g. centsToInput(1000) -> "10,00". Round-trips through parseToCents.
+ */
+export function centsToInput(amount: number): string {
+  return (amount / 100).toFixed(2).replace('.', ',')
+}
