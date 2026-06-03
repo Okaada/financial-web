@@ -6,7 +6,9 @@
 //     (the JS never reads/writes the cookie itself);
 //   - parses the standard error envelope { error: { code, message } } into a
 //     structured ApiError, never leaking the raw Response;
-//   - handles 401 centrally by redirecting to login — callers never handle 401;
+//   - handles 401 centrally by marking the session unauthenticated (App then shows the
+//     login screen) — callers never handle 401, and we do NOT auto-navigate to login;
+//   - marks the session authenticated on any successful protected response;
 //   - classifies 404 as a structured `not_found` (does NOT trigger login and is not
 //     a "system error") so callers can render "not found";
 //   - treats 204 No Content as success without parsing a body.
@@ -14,7 +16,7 @@
 // The eslint `no-restricted-globals` rule forbids fetch elsewhere; this file is the
 // single exception.
 
-import { redirectToLogin } from './auth'
+import { markAuthenticated, markUnauthenticated } from './authState'
 import { API_PREFIX } from './paths'
 import type { ErrorEnvelope } from './types'
 
@@ -94,9 +96,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     body: body === undefined ? undefined : JSON.stringify(body),
   })
 
-  // Central 401 handling: redirect to login; the call never resolves with data.
+  // Central 401 handling: mark the session unauthenticated (App shows the login screen);
+  // the call never resolves with data. We do NOT navigate to login here — only the
+  // explicit "Entrar com Google" button does (avoids silent re-SSO after logout).
   if (response.status === 401) {
-    redirectToLogin()
+    markUnauthenticated()
     throw new UnauthenticatedError()
   }
 
@@ -105,6 +109,9 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     // system failure and not a login trigger).
     throw await toApiError(response)
   }
+
+  // A successful protected response confirms we have a session.
+  markAuthenticated()
 
   // 204 No Content (e.g. logout) — success with no body to parse.
   if (response.status === 204) {

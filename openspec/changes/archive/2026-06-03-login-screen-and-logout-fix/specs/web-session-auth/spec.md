@@ -1,15 +1,4 @@
-# web-session-auth
-
-## Purpose
-
-Definir como o front estabelece e encerra a sessão sem endpoint de identidade
-(`whoami`): uma **tela de login (somente Google)** com login por navegação top-level para
-`GET /api/auth/login` iniciado pelo usuário, estado de autenticação **observável**
-(`unknown | authenticated | unauthenticated`) inferido por sondagem de endpoint protegido
-(`401` ⇒ sem sessão), e logout via `POST /api/auth/logout` que leva à tela de login (sem
-reiniciar o OIDC).
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Login por navegação top-level
 
@@ -83,6 +72,8 @@ ainda ativa, re-autenticaria o usuário em silêncio — anulando o logout).
 - **WHEN** o `POST /api/auth/logout` falha (rede/erro)
 - **THEN** o app ainda marca "sem sessão" e exibe a tela de login (a intenção do usuário é
   sair), sem travar
+
+## ADDED Requirements
 
 ### Requirement: Tela de login (somente Google)
 

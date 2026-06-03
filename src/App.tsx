@@ -5,7 +5,10 @@
 // Navigation is plain local state (design D4): a few screens, no router, no deep-links.
 // Layout is a shell: a sidebar (fixed on desktop, drawer on mobile) + the main content.
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
+import { getAuthStatus, markUnauthenticated, subscribeAuth } from './api/authState'
+import { probeSession } from './api/session'
+import { LoginScreen } from './features/auth/LoginScreen'
 import { AccountScreen } from './features/account/AccountScreen'
 import { CardsScreen } from './features/cards/CardsScreen'
 import { CategoriesScreen } from './features/categories/CategoriesScreen'
@@ -31,6 +34,36 @@ const SCREENS: Record<Exclude<View, 'dashboard'>, () => React.JSX.Element> = {
 }
 
 export default function App() {
+  const authStatus = useSyncExternalStore(subscribeAuth, getAuthStatus)
+
+  // On first load, probe a protected endpoint to learn the session state. The HTTP client
+  // sets the state (success -> authenticated, 401 -> unauthenticated). If the probe fails
+  // for another reason (network/500), fall back to the login screen so we never hang on the
+  // splash.
+  useEffect(() => {
+    if (getAuthStatus() !== 'unknown') return
+    void probeSession().finally(() => {
+      if (getAuthStatus() === 'unknown') markUnauthenticated()
+    })
+  }, [])
+
+  if (authStatus === 'unknown') {
+    return (
+      <div className="splash" role="status" aria-live="polite">
+        <span className="splash-brand">Finance</span>
+        <span className="state state-loading">Carregando…</span>
+      </div>
+    )
+  }
+
+  if (authStatus === 'unauthenticated') {
+    return <LoginScreen />
+  }
+
+  return <AppShell />
+}
+
+function AppShell() {
   const [view, setView] = useState<View>('dashboard')
   const [navOpen, setNavOpen] = useState(false)
 

@@ -1,13 +1,14 @@
 // Account & LGPD screen (web-account spec). Three sections: record consent, read-only audit
 // trail, and self-only account deletion. Explicit UI states per operation. A 401 is handled
-// centrally by the HTTP client (redirect to login); this screen never handles it locally.
+// centrally by the HTTP client (marks the session unauthenticated → login screen); this
+// screen never handles it locally.
 //
 // XSS hygiene: audit `metadata` is rendered as escaped key/value text via React — never
 // dangerouslySetInnerHTML. Non-string values are JSON-serialized to a safe string.
 
 import { useCallback, useEffect, useState } from 'react'
 import { ApiError, UnauthenticatedError } from '../../api/client'
-import { redirectToLogin } from '../../api/auth'
+import { markUnauthenticated } from '../../api/authState'
 import type { AuditEvent, Consent } from '../../api/types'
 import { deleteAccount, listAudit, recordConsent } from './api'
 
@@ -85,8 +86,9 @@ export function AccountScreen() {
     setDeleting(true)
     try {
       await deleteAccount() // 204; backend clears the session cookie
-      // Session is over — leave the authenticated state exactly like logout does.
-      redirectToLogin()
+      // The account is gone (hard delete) — show the login screen, don't restart OIDC
+      // (that would onboard a brand-new account). Same model as logout.
+      markUnauthenticated()
     } catch (err) {
       if (err instanceof UnauthenticatedError) return
       setDeleteError(err instanceof ApiError ? err.message : 'Falha ao excluir a conta.')
