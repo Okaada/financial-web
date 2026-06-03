@@ -3,10 +3,9 @@
 // centrally by the HTTP client (redirect to GET /api/auth/login).
 //
 // Navigation is plain local state (design D4): a few screens, no router, no deep-links.
+// Layout is a shell: a sidebar (fixed on desktop, drawer on mobile) + the main content.
 
-import { useState } from 'react'
-import { logout } from './api/session'
-import { ThemeToggle } from './features/shell/ThemeToggle'
+import { useEffect, useState } from 'react'
 import { AccountScreen } from './features/account/AccountScreen'
 import { CardsScreen } from './features/cards/CardsScreen'
 import { CategoriesScreen } from './features/categories/CategoriesScreen'
@@ -15,27 +14,9 @@ import { InvestmentsScreen } from './features/investments/InvestmentsScreen'
 import { RecurringOccurrencesScreen } from './features/recurring/RecurringOccurrencesScreen'
 import { RecurringTemplatesScreen } from './features/recurring/RecurringTemplatesScreen'
 import { TransactionsScreen } from './features/transactions/TransactionsScreen'
-
-type View =
-  | 'dashboard'
-  | 'transactions'
-  | 'categories'
-  | 'recurring'
-  | 'occurrences'
-  | 'investments'
-  | 'cards'
-  | 'account'
-
-const VIEWS: { id: View; label: string }[] = [
-  { id: 'dashboard', label: 'Visão geral' },
-  { id: 'transactions', label: 'Transações' },
-  { id: 'categories', label: 'Categorias' },
-  { id: 'recurring', label: 'Recorrentes' },
-  { id: 'occurrences', label: 'Previstos' },
-  { id: 'investments', label: 'Investimentos' },
-  { id: 'cards', label: 'Cartões' },
-  { id: 'account', label: 'Conta' },
-]
+import { MenuIcon } from './features/shell/NavIcons'
+import { Sidebar } from './features/shell/Sidebar'
+import type { View } from './features/shell/nav'
 
 // Screens with no props are looked up here; the dashboard takes an onNavigate prop and is
 // rendered explicitly below.
@@ -51,38 +32,48 @@ const SCREENS: Record<Exclude<View, 'dashboard'>, () => React.JSX.Element> = {
 
 export default function App() {
   const [view, setView] = useState<View>('dashboard')
+  const [navOpen, setNavOpen] = useState(false)
+
+  // Close the mobile drawer on Escape (only matters while it is open).
+  useEffect(() => {
+    if (!navOpen) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setNavOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [navOpen])
 
   return (
-    <>
-      <header className="appbar">
-        <div className="appbar-inner">
-          <span className="appbar-brand">Finance</span>
-
-          <nav className="nav-views" aria-label="Navegação principal">
-            {VIEWS.map((v) => (
-              <button
-                key={v.id}
-                type="button"
-                className={view === v.id ? 'nav-link active' : 'nav-link'}
-                aria-current={view === v.id ? 'page' : undefined}
-                onClick={() => setView(v.id)}
-              >
-                {v.label}
-              </button>
-            ))}
-          </nav>
-
-          <div className="appbar-actions">
-            <ThemeToggle />
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => void logout()}>
-              Sair
-            </button>
-          </div>
-        </div>
+    <div className={navOpen ? 'app-shell nav-open' : 'app-shell'}>
+      {/* Slim top bar — only visible on mobile (CSS), to open the drawer. */}
+      <header className="topbar">
+        <button
+          type="button"
+          className="topbar-menu"
+          aria-label="Abrir menu"
+          aria-expanded={navOpen}
+          onClick={() => setNavOpen(true)}
+        >
+          <MenuIcon />
+        </button>
+        <span className="topbar-brand">Finance</span>
       </header>
 
-      <CurrentScreen view={view} onNavigate={setView} />
-    </>
+      <Sidebar view={view} onNavigate={setView} onClose={() => setNavOpen(false)} />
+
+      {/* Backdrop behind the mobile drawer. */}
+      <div
+        className="scrim"
+        role="presentation"
+        hidden={!navOpen}
+        onClick={() => setNavOpen(false)}
+      />
+
+      <main className="app-main">
+        <CurrentScreen view={view} onNavigate={setView} />
+      </main>
+    </div>
   )
 }
 
