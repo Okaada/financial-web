@@ -14,11 +14,13 @@
     <!--
       CSP restritiva (design.md, Riscos): mesmo com cookie HttpOnly, um XSS faria
       requisição autenticada — então não permitimos origem de script externa nem
-      conexão fora do próprio origin. Ajustar via header do Worker em produção.
+      conexão fora do próprio origin. Em produção o Worker (worker/index.ts) reenvia esta
+      CSP como header HTTP e adiciona `frame-ancestors 'none'` (que é IGNORADO em <meta>).
+      Este <meta> é o fallback para servir estático sem o Worker.
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+      content="default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; base-uri 'self'"
     />
     <title>Finance</title>
   </head>

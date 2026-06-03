@@ -81,7 +81,17 @@ export default function App() {
         </div>
       </header>
 
-      {view === 'dashboard' ? <DashboardScreen onNavigate={setView} /> : SCREENS[view]()}
+      <CurrentScreen view={view} onNavigate={setView} />
     </>
   )
+}
+
+// Render the active screen as a real component (NOT a function call) so its hooks live in
+// their own component instance. Calling SCREENS[view]() inline would run each screen's
+// hooks inside App's render, and switching views would change App's hook sequence —
+// triggering React error #310 (hooks count mismatch) on navigation.
+function CurrentScreen({ view, onNavigate }: { view: View; onNavigate: (v: View) => void }) {
+  if (view === 'dashboard') return <DashboardScreen onNavigate={onNavigate} />
+  const Screen = SCREENS[view]
+  return <Screen />
 }

@@ -19,15 +19,39 @@ interface Env {
   FINANCE_API: Fetcher
 }
 
+// Restrictive CSP for the SPA, delivered as a real response header so `frame-ancestors`
+// is actually enforced (it is ignored when set via <meta>). Same policy as before: only
+// same-origin scripts/connections, inline styles allowed (Vite injects a stylesheet link
+// + some inline styles), images from self + data:. No external resources.
+const CSP =
+  "default-src 'self'; connect-src 'self'; img-src 'self' data:; " +
+  "style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; " +
+  "base-uri 'self'; frame-ancestors 'none'"
+
+/** Add security headers to an asset response (never to API responses). */
+function withSecurityHeaders(response: Response): Response {
+  const headers = new Headers(response.headers)
+  headers.set('Content-Security-Policy', CSP)
+  headers.set('X-Content-Type-Options', 'nosniff')
+  headers.set('Referrer-Policy', 'no-referrer')
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  })
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
 
     if (url.pathname === '/api' || url.pathname.startsWith('/api/')) {
       url.pathname = url.pathname.replace(/^\/api/, '') || '/'
+      // API responses pass through untouched (Set-Cookie, Location, the backend's own
+      // headers) — we only add security headers to our own static assets.
       return env.FINANCE_API.fetch(new Request(url, request))
     }
 
-    return env.ASSETS.fetch(request)
+    return withSecurityHeaders(await env.ASSETS.fetch(request))
   },
 }
