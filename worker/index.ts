@@ -28,12 +28,19 @@ const CSP =
   "style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; " +
   "base-uri 'self'; frame-ancestors 'none'"
 
-/** Add security headers to an asset response (never to API responses). */
+/**
+ * Add security headers to an asset response (never to API responses). The Worker is the
+ * authoritative source: `_headers` is a Cloudflare Pages mechanism and is not guaranteed
+ * under Workers + Static Assets, and a `<meta>` CSP cannot set `frame-ancestors`. Setting
+ * them here works regardless.
+ */
 function withSecurityHeaders(response: Response): Response {
   const headers = new Headers(response.headers)
   headers.set('Content-Security-Policy', CSP)
+  headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload')
   headers.set('X-Content-Type-Options', 'nosniff')
   headers.set('Referrer-Policy', 'no-referrer')
+  headers.set('X-Frame-Options', 'DENY')
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
