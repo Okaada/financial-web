@@ -19,6 +19,11 @@ export const INVESTMENTS_PATH = `${API_PREFIX}/investments`
 export const CARDS_PATH = `${API_PREFIX}/cards`
 export const INVOICES_PATH = `${API_PREFIX}/invoices`
 
+// Account & LGPD (CONTRACT.md §9). DELETE /account is self-only — there is no by-id form.
+export const ACCOUNT_PATH = `${API_PREFIX}/account`
+export const ACCOUNT_CONSENT_PATH = `${ACCOUNT_PATH}/consent`
+export const ACCOUNT_AUDIT_PATH = `${ACCOUNT_PATH}/audit`
+
 // Resource-scoped paths (ids are URL-encoded; a 404 here means "not found / not owned").
 export const transactionPath = (id: string) => `${TRANSACTIONS_PATH}/${encodeURIComponent(id)}`
 export const categoryPath = (id: string) => `${CATEGORIES_PATH}/${encodeURIComponent(id)}`

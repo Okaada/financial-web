@@ -2,6 +2,11 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import './index.css'
+import { initTheme } from './lib/theme'
+
+// Apply the persisted theme before render so a forced theme doesn't flash. No inline
+// <script> is used, so the CSP stays restrictive (script-src 'self').
+initTheme()
 
 const rootElement = document.getElementById('root')
 if (!rootElement) throw new Error('Root element #root not found')

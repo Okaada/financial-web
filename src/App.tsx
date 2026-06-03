@@ -6,66 +6,82 @@
 
 import { useState } from 'react'
 import { logout } from './api/session'
+import { ThemeToggle } from './features/shell/ThemeToggle'
+import { AccountScreen } from './features/account/AccountScreen'
 import { CardsScreen } from './features/cards/CardsScreen'
 import { CategoriesScreen } from './features/categories/CategoriesScreen'
+import { DashboardScreen } from './features/dashboard/DashboardScreen'
 import { InvestmentsScreen } from './features/investments/InvestmentsScreen'
 import { RecurringOccurrencesScreen } from './features/recurring/RecurringOccurrencesScreen'
 import { RecurringTemplatesScreen } from './features/recurring/RecurringTemplatesScreen'
 import { TransactionsScreen } from './features/transactions/TransactionsScreen'
 
 type View =
+  | 'dashboard'
   | 'transactions'
   | 'categories'
   | 'recurring'
   | 'occurrences'
   | 'investments'
   | 'cards'
+  | 'account'
 
 const VIEWS: { id: View; label: string }[] = [
+  { id: 'dashboard', label: 'Visão geral' },
   { id: 'transactions', label: 'Transações' },
   { id: 'categories', label: 'Categorias' },
   { id: 'recurring', label: 'Recorrentes' },
   { id: 'occurrences', label: 'Previstos' },
   { id: 'investments', label: 'Investimentos' },
   { id: 'cards', label: 'Cartões' },
+  { id: 'account', label: 'Conta' },
 ]
 
-const SCREENS: Record<View, () => React.JSX.Element> = {
+// Screens with no props are looked up here; the dashboard takes an onNavigate prop and is
+// rendered explicitly below.
+const SCREENS: Record<Exclude<View, 'dashboard'>, () => React.JSX.Element> = {
   transactions: TransactionsScreen,
   categories: CategoriesScreen,
   recurring: RecurringTemplatesScreen,
   occurrences: RecurringOccurrencesScreen,
   investments: InvestmentsScreen,
   cards: CardsScreen,
+  account: AccountScreen,
 }
 
 export default function App() {
-  const [view, setView] = useState<View>('transactions')
-  const Screen = SCREENS[view]
+  const [view, setView] = useState<View>('dashboard')
 
   return (
     <>
-      <nav className="nav">
-        <div className="nav-inner">
-          <div className="nav-views">
+      <header className="appbar">
+        <div className="appbar-inner">
+          <span className="appbar-brand">Finance</span>
+
+          <nav className="nav-views" aria-label="Navegação principal">
             {VIEWS.map((v) => (
               <button
                 key={v.id}
                 type="button"
                 className={view === v.id ? 'nav-link active' : 'nav-link'}
+                aria-current={view === v.id ? 'page' : undefined}
                 onClick={() => setView(v.id)}
               >
                 {v.label}
               </button>
             ))}
-          </div>
-          <button type="button" className="btn btn-ghost btn-sm" onClick={() => void logout()}>
-            Sair
-          </button>
-        </div>
-      </nav>
+          </nav>
 
-      <Screen />
+          <div className="appbar-actions">
+            <ThemeToggle />
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => void logout()}>
+              Sair
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {view === 'dashboard' ? <DashboardScreen onNavigate={setView} /> : SCREENS[view]()}
     </>
   )
 }

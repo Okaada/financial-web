@@ -285,6 +285,30 @@ export interface CardFilters {
   archived?: boolean
 }
 
+/** CONTRACT.md §9 — Consent record returned by POST /account/consent. */
+export interface Consent {
+  id: string
+  version: string
+  grantedAt: string // iso-utc
+}
+
+/** Body for POST /account/consent. */
+export interface RecordConsentInput {
+  version: string
+}
+
+/**
+ * CONTRACT.md §9 — Audit event. `metadata` is an object of allowlisted keys only (no
+ * free-text/secrets). Typed as unknown values: the UI renders them as escaped text/data,
+ * never as HTML.
+ */
+export interface AuditEvent {
+  id: string
+  eventType: string
+  metadata: Record<string, unknown>
+  createdAt: string // iso-utc
+}
+
 /** Standard list envelope used by every collection endpoint. */
 export interface ListEnvelope<T> {
   items: T[]

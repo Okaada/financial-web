@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- App 100% atrás de autenticação: sem SEO, sem indexação. -->
     <meta name="robots" content="noindex, nofollow" />
-    <!-- Soft light/dark theme — matches the CSS tokens (prefers-color-scheme). -->
+    <!-- Soft light/dark theme. User-selectable via data-theme (src/lib/theme.ts), applied
+         in the bundle before render (no inline script, so the CSP stays restrictive);
+         "system" follows prefers-color-scheme. -->
     <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#f4f6f9" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#14161b" media="(prefers-color-scheme: dark)" />
