@@ -1,0 +1,984 @@
+openapi: 3.1.0
+info:
+  title: Finance API
+  version: 0.1.0
+  description: >
+    Real HTTP contract as implemented (handlers, router, session/auth, D1 schema) — not the
+    openspec specs. Multi-tenant personal finance API on Cloudflare Workers + D1.
+
+    Conventions: JSON bodies; auth via the `fa_session` cookie (HS256 JWT, 15-min TTL,
+    HttpOnly/Secure/SameSite=Lax); all monetary amounts are integers in minor units (cents)
+    unless noted; resources fetched by URL id that are missing OR owned by another tenant
+    return 404 (never 403); a category/card id referenced in a request body that is
+    missing/archived/non-owned returns 400.
+
+    Encrypted-at-rest fields are returned DECRYPTED to the owner: transaction
+    description/externalRef, recurring template description, investment name, contribution
+    note, credit card name.
+servers:
+  - url: https://financial-api.gatolandios.com.br
+    description: Production
+  - url: http://localhost:8787
+    description: Local dev (wrangler dev)
+
+tags:
+  - name: Auth
+  - name: System
+  - name: Transactions
+  - name: Categories
+  - name: Recurring
+  - name: Investments
+  - name: Cards & Invoices
+  - name: Account
+
+security:
+  - sessionCookie: []
+
+paths:
+  /:
+    get:
+      tags: [System]
+      summary: Root (default post-login landing)
+      security: []
+      responses:
+        "200":
+          description: Service identity
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  service: { type: string, const: finance-api }
+                  version: { type: string }
+                required: [service, version]
+
+  /health:
+    get:
+      tags: [System]
+      summary: Structured health check
+      security: []
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/Health" } }
+        "503":
+          description: Degraded (a critical dependency is down)
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/Health" } }
+
+  /auth/login:
+    get:
+      tags: [Auth]
+      summary: Start Google OIDC login
+      security: []
+      description: >
+        302 redirect to Google's authorize URL. Sets transient cookies
+        fa_oidc_state / fa_oidc_nonce / fa_oidc_verifier (HttpOnly; Secure; SameSite=Lax; Max-Age=600).
+      responses:
+        "302":
+          description: Redirect to Google
+          headers:
+            Location: { schema: { type: string } }
+            Set-Cookie: { schema: { type: string } }
+
+  /auth/callback:
+    get:
+      tags: [Auth]
+      summary: OIDC callback — validate token, onboard (gated), issue session
+      security: []
+      parameters:
+        - { name: code, in: query, required: true, schema: { type: string } }
+        - { name: state, in: query, required: true, schema: { type: string } }
+      responses:
+        "302":
+          description: Success — sets fa_session, clears transient cookies, redirects to POST_LOGIN_REDIRECT (default "/")
+          headers:
+            Location: { schema: { type: string } }
+            Set-Cookie: { schema: { type: string } }
+        "401":
+          description: Invalid login state, or token exchange/validation failed
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/Error" } }
+        "403":
+          description: Identity not permitted to onboard (signup gate)
+          content:
+            application/json: { schema: { $ref: "#/components/schemas/Error" } }
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Logout (clears the session cookie)
+      security: []
+      responses:
+        "204":
+          description: Session cookie cleared (stateless — token valid until exp)
+          headers:
+            Set-Cookie: { schema: { type: string } }
+
+  /transactions:
+    post:
+      tags: [Transactions]
+      summary: Create transaction
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: "#/components/schemas/TransactionInput" } }
+      responses:
+        "201": { $ref: "#/components/responses/Transaction" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    get:
+      tags: [Transactions]
+      summary: List transactions
+      parameters:
+        - { name: type, in: query, schema: { $ref: "#/components/schemas/TransactionType" } }
+        - { name: categoryId, in: query, schema: { type: string } }
+        - { name: cardId, in: query, schema: { type: string } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        "200":
+          description: Caller's transactions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/Transaction" } }
+                required: [items]
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /transactions/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Transactions]
+      summary: Get transaction
+      responses:
+        "200": { $ref: "#/components/responses/Transaction" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    put:
+      tags: [Transactions]
+      summary: Update transaction (full replace)
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: "#/components/schemas/TransactionInput" } }
+      responses:
+        "200": { $ref: "#/components/responses/Transaction" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    delete:
+      tags: [Transactions]
+      summary: Delete transaction
+      responses:
+        "204": { description: Deleted }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /categories:
+    post:
+      tags: [Categories]
+      summary: Create category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                type: { $ref: "#/components/schemas/CategoryType" }
+              required: [name, type]
+      responses:
+        "201": { $ref: "#/components/responses/Category" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    get:
+      tags: [Categories]
+      summary: List categories
+      parameters:
+        - { name: type, in: query, schema: { $ref: "#/components/schemas/CategoryType" } }
+        - { name: archived, in: query, schema: { type: boolean } }
+      responses:
+        "200":
+          description: Caller's categories
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { items: { type: array, items: { $ref: "#/components/schemas/Category" } } }
+                required: [items]
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /categories/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Categories]
+      summary: Get category
+      responses:
+        "200": { $ref: "#/components/responses/Category" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    put:
+      tags: [Categories]
+      summary: Rename category (type is immutable)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: { name: { type: string } }
+              required: [name]
+      responses:
+        "200": { $ref: "#/components/responses/Category" }
+        "400":
+          description: name missing, or `type` present (immutable)
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /categories/{id}/archive:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    post:
+      tags: [Categories]
+      summary: Archive category (soft delete)
+      responses:
+        "200": { $ref: "#/components/responses/Category" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /recurring-templates:
+    post:
+      tags: [Recurring]
+      summary: Create recurring template
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: "#/components/schemas/RecurringTemplateInput" } }
+      responses:
+        "201": { $ref: "#/components/responses/RecurringTemplate" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    get:
+      tags: [Recurring]
+      summary: List recurring templates
+      parameters:
+        - { name: active, in: query, schema: { type: boolean } }
+      responses:
+        "200":
+          description: Caller's templates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { items: { type: array, items: { $ref: "#/components/schemas/RecurringTemplate" } } }
+                required: [items]
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /recurring-templates/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Recurring]
+      summary: Get recurring template
+      responses:
+        "200": { $ref: "#/components/responses/RecurringTemplate" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    put:
+      tags: [Recurring]
+      summary: Update recurring template
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: "#/components/schemas/RecurringTemplateInput" } }
+      responses:
+        "200": { $ref: "#/components/responses/RecurringTemplate" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    delete:
+      tags: [Recurring]
+      summary: Delete recurring template
+      responses:
+        "204": { description: Deleted }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /recurring-templates/{id}/confirm:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    post:
+      tags: [Recurring]
+      summary: Confirm an occurrence — materialize a transaction (idempotent per template+competence)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: { competence: { type: string, pattern: "^\\d{4}-\\d{2}$" } }
+              required: [competence]
+      responses:
+        "201":
+          description: First confirmation — materialized transaction
+          content: { application/json: { schema: { $ref: "#/components/schemas/Transaction" } } }
+        "200":
+          description: Idempotent repeat — existing materialized transaction
+          content: { application/json: { schema: { $ref: "#/components/schemas/Transaction" } } }
+        "400":
+          description: competence not a valid occurrence of the template
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /recurring-occurrences:
+    get:
+      tags: [Recurring]
+      summary: List forecast occurrences in a range (computed at request time, not persisted)
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string, format: date } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        "200":
+          description: Forecast occurrences
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { items: { type: array, items: { $ref: "#/components/schemas/Occurrence" } } }
+                required: [items]
+        "400":
+          description: from/to missing, from > to, or range too large (>~3 years)
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /investments:
+    post:
+      tags: [Investments]
+      summary: Create investment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: [string, "null"] }
+                type: { $ref: "#/components/schemas/InvestmentType" }
+                currency: { type: string }
+              required: [type, currency]
+      responses:
+        "201": { $ref: "#/components/responses/Investment" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    get:
+      tags: [Investments]
+      summary: List investments (with aggregates)
+      parameters:
+        - { name: archived, in: query, schema: { type: boolean } }
+      responses:
+        "200":
+          description: Caller's investments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { items: { type: array, items: { $ref: "#/components/schemas/Investment" } } }
+                required: [items]
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /investments/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Investments]
+      summary: Get investment
+      responses:
+        "200": { $ref: "#/components/responses/Investment" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    put:
+      tags: [Investments]
+      summary: Rename investment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: { name: { type: [string, "null"] } }
+      responses:
+        "200": { $ref: "#/components/responses/Investment" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /investments/{id}/archive:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    post:
+      tags: [Investments]
+      summary: Archive investment (soft delete)
+      responses:
+        "200": { $ref: "#/components/responses/Investment" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /investments/{id}/contributions:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    post:
+      tags: [Investments]
+      summary: Add a contribution (aporte)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount: { type: integer, description: "minor units (cents), > 0", exclusiveMinimum: 0 }
+                occurredOn: { type: string, format: date }
+                note: { type: [string, "null"] }
+              required: [amount, occurredOn]
+      responses:
+        "201":
+          description: Contribution (note returned decrypted)
+          content: { application/json: { schema: { $ref: "#/components/schemas/Contribution" } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /investments/{id}/valuations:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    post:
+      tags: [Investments]
+      summary: Record a versioned valuation (append-only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                currentValue: { type: integer, description: "minor units (cents)" }
+                recordedOn: { type: string, format: date }
+              required: [currentValue, recordedOn]
+      responses:
+        "201":
+          description: Valuation
+          content: { application/json: { schema: { $ref: "#/components/schemas/Valuation" } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /cards:
+    post:
+      tags: [Cards & Invoices]
+      summary: Create credit card
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: [string, "null"] }
+                closingDay: { type: integer, minimum: 1, maximum: 31 }
+                dueDay: { type: integer, minimum: 1, maximum: 31 }
+                currency: { type: string }
+              required: [closingDay, dueDay, currency]
+      responses:
+        "201": { $ref: "#/components/responses/Card" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    get:
+      tags: [Cards & Invoices]
+      summary: List cards
+      parameters:
+        - { name: archived, in: query, schema: { type: boolean } }
+      responses:
+        "200":
+          description: Caller's cards
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { items: { type: array, items: { $ref: "#/components/schemas/Card" } } }
+                required: [items]
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /cards/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Cards & Invoices]
+      summary: Get card
+      responses:
+        "200": { $ref: "#/components/responses/Card" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    put:
+      tags: [Cards & Invoices]
+      summary: Update card (closing_day immutable)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: [string, "null"] }
+                dueDay: { type: integer, minimum: 1, maximum: 31 }
+                closingDay: { type: integer, description: "rejected if different from current (immutable)" }
+      responses:
+        "200": { $ref: "#/components/responses/Card" }
+        "400":
+          description: attempt to change closing_day, or invalid day
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /cards/{id}/archive:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    post:
+      tags: [Cards & Invoices]
+      summary: Archive card (soft delete)
+      responses:
+        "200": { $ref: "#/components/responses/Card" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /cards/{id}/rates:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Cards & Invoices]
+      summary: List mileage rates (versioned, append-only)
+      responses:
+        "200":
+          description: Card's rates
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { items: { type: array, items: { $ref: "#/components/schemas/MileageRate" } } }
+                required: [items]
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      tags: [Cards & Invoices]
+      summary: Add a mileage rate version
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                milesPerUnit: { type: number, minimum: 0, description: "decimal multiplier (NOT cents)" }
+                effectiveFrom: { type: string, format: date }
+              required: [milesPerUnit, effectiveFrom]
+      responses:
+        "201":
+          description: Rate
+          content: { application/json: { schema: { $ref: "#/components/schemas/MileageRate" } } }
+        "400":
+          description: invalid input, or card archived
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /cards/{id}/miles:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Cards & Invoices]
+      summary: Card total miles (sum of derived miles of PAID invoices)
+      responses:
+        "200":
+          description: Total miles
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cardId: { type: string }
+                  totalMiles: { type: integer }
+                required: [cardId, totalMiles]
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /cards/{id}/invoices:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Cards & Invoices]
+      summary: List a card's invoices
+      responses:
+        "200":
+          description: Invoices (with derived total + projected miles)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties: { items: { type: array, items: { $ref: "#/components/schemas/Invoice" } } }
+                required: [items]
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /invoices/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [Cards & Invoices]
+      summary: Get invoice with its transactions and projected miles
+      responses:
+        "200":
+          description: Invoice + transactions
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - { $ref: "#/components/schemas/Invoice" }
+                  - type: object
+                    properties: { transactions: { type: array, items: { $ref: "#/components/schemas/Transaction" } } }
+                    required: [transactions]
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /invoices/{id}/close:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    post:
+      tags: [Cards & Invoices]
+      summary: Close invoice (open → closed)
+      responses:
+        "200": { $ref: "#/components/responses/Invoice" }
+        "400":
+          description: invalid transition (not open)
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /invoices/{id}/pay:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    post:
+      tags: [Cards & Invoices]
+      summary: Pay invoice (closed → paid)
+      responses:
+        "200": { $ref: "#/components/responses/Invoice" }
+        "400":
+          description: invalid transition (not closed)
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /account/consent:
+    post:
+      tags: [Account]
+      summary: Record LGPD consent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: { version: { type: string } }
+              required: [version]
+      responses:
+        "201":
+          description: Consent recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id: { type: string }
+                  version: { type: string }
+                  grantedAt: { type: string, format: date-time }
+                required: [id, version, grantedAt]
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /account/audit:
+    get:
+      tags: [Account]
+      summary: List the caller's append-only audit entries
+      responses:
+        "200":
+          description: Audit entries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        eventType: { type: string }
+                        metadata: { type: [object, "null"], additionalProperties: true }
+                        createdAt: { type: string, format: date-time }
+                      required: [id, eventType, createdAt]
+                required: [items]
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /account:
+    delete:
+      tags: [Account]
+      summary: Delete the caller's account (LGPD hard delete, self-only)
+      description: Hard delete with cascade; writes an HMAC tombstone; clears the session cookie.
+      responses:
+        "204":
+          description: Account deleted
+          headers:
+            Set-Cookie: { schema: { type: string } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: fa_session
+      description: HS256 JWT session, 15-min TTL, HttpOnly; Secure; SameSite=Lax. Set by /auth/callback.
+
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+
+  responses:
+    Unauthorized:
+      description: No valid session (or session of a deleted user)
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    NotFound:
+      description: Missing, or owned by another tenant (404 never reveals existence)
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    BadRequest:
+      description: Invalid body, or a body-referenced categoryId/cardId that is missing/archived/non-owned
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    Transaction:
+      description: Transaction
+      content: { application/json: { schema: { $ref: "#/components/schemas/Transaction" } } }
+    Category:
+      description: Category
+      content: { application/json: { schema: { $ref: "#/components/schemas/Category" } } }
+    RecurringTemplate:
+      description: Recurring template
+      content: { application/json: { schema: { $ref: "#/components/schemas/RecurringTemplate" } } }
+    Investment:
+      description: Investment
+      content: { application/json: { schema: { $ref: "#/components/schemas/Investment" } } }
+    Card:
+      description: Credit card
+      content: { application/json: { schema: { $ref: "#/components/schemas/Card" } } }
+    Invoice:
+      description: Invoice
+      content: { application/json: { schema: { $ref: "#/components/schemas/Invoice" } } }
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string, examples: [unauthorized, not_found, bad_request, signup_denied, internal_error] }
+            message: { type: string }
+          required: [code, message]
+      required: [error]
+
+    Health:
+      type: object
+      properties:
+        status: { type: string, enum: [ok, degraded] }
+        service: { type: string }
+        version: { type: string }
+        timestamp: { type: string, format: date-time }
+        checks:
+          type: object
+          properties:
+            database:
+              type: object
+              properties:
+                status: { type: string, enum: [ok, degraded] }
+                latencyMs: { type: integer }
+                error: { type: string }
+              required: [status, latencyMs]
+          required: [database]
+      required: [status, service, version, timestamp, checks]
+
+    TransactionType:
+      type: string
+      enum: [income, expense]
+    CategoryType:
+      type: string
+      enum: [income, expense, investment]
+    InvestmentType:
+      type: string
+      enum: [renda_fixa, acoes, fii, cripto, outro]
+    InvoiceStatus:
+      type: string
+      enum: [open, closed, paid]
+
+    TransactionInput:
+      type: object
+      properties:
+        type: { $ref: "#/components/schemas/TransactionType" }
+        amount: { type: integer, description: "minor units (cents)" }
+        currency: { type: string }
+        occurredOn: { type: string, description: "expected YYYY-MM-DD (only non-empty enforced)" }
+        categoryId: { type: [string, "null"] }
+        cardId: { type: [string, "null"], description: "null = ad-hoc, outside any invoice" }
+        description: { type: [string, "null"], description: "encrypted at rest" }
+        externalRef: { type: [string, "null"], description: "encrypted at rest" }
+      required: [type, amount, currency, occurredOn]
+
+    Transaction:
+      type: object
+      properties:
+        id: { type: string }
+        type: { $ref: "#/components/schemas/TransactionType" }
+        amount: { type: integer, description: "minor units (cents)" }
+        currency: { type: string }
+        categoryId: { type: [string, "null"] }
+        category: { type: [string, "null"], description: "legacy free-text fallback (read-only)" }
+        recurringTemplateId: { type: [string, "null"] }
+        cardId: { type: [string, "null"] }
+        occurredOn: { type: string, format: date }
+        description: { type: [string, "null"], description: "DECRYPTED for owner" }
+        externalRef: { type: [string, "null"], description: "DECRYPTED for owner" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, type, amount, currency, categoryId, category, recurringTemplateId, cardId, occurredOn, description, externalRef, createdAt, updatedAt]
+
+    Category:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string, description: "cleartext (not encrypted)" }
+        type: { $ref: "#/components/schemas/CategoryType" }
+        archived: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, name, type, archived, createdAt, updatedAt]
+
+    RecurringTemplateInput:
+      type: object
+      properties:
+        type: { $ref: "#/components/schemas/TransactionType" }
+        amount: { type: integer, description: "minor units (cents)" }
+        currency: { type: string }
+        dayOfMonth: { type: integer, minimum: 1, maximum: 31 }
+        intervalMonths: { type: integer, minimum: 1 }
+        startDate: { type: string, format: date }
+        endDate: { type: [string, "null"], format: date }
+        categoryId: { type: [string, "null"] }
+        description: { type: [string, "null"], description: "encrypted at rest" }
+        active: { type: boolean, default: true }
+      required: [type, amount, currency, dayOfMonth, intervalMonths, startDate]
+
+    RecurringTemplate:
+      type: object
+      properties:
+        id: { type: string }
+        description: { type: [string, "null"], description: "DECRYPTED for owner" }
+        amount: { type: integer, description: "minor units (cents)" }
+        currency: { type: string }
+        type: { $ref: "#/components/schemas/TransactionType" }
+        categoryId: { type: [string, "null"] }
+        dayOfMonth: { type: integer }
+        intervalMonths: { type: integer }
+        startDate: { type: string, format: date }
+        endDate: { type: [string, "null"], format: date }
+        active: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, description, amount, currency, type, categoryId, dayOfMonth, intervalMonths, startDate, endDate, active, createdAt, updatedAt]
+
+    Occurrence:
+      type: object
+      description: Forecast occurrence — computed at request time, not persisted.
+      properties:
+        recurringTemplateId: { type: string }
+        competence: { type: string, pattern: "^\\d{4}-\\d{2}$" }
+        date: { type: string, format: date }
+        amount: { type: integer, description: "minor units (cents)" }
+        currency: { type: string }
+        type: { $ref: "#/components/schemas/TransactionType" }
+        categoryId: { type: [string, "null"] }
+        confirmed: { type: boolean }
+        transactionId: { type: [string, "null"] }
+      required: [recurringTemplateId, competence, date, amount, currency, type, categoryId, confirmed, transactionId]
+
+    Investment:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: [string, "null"], description: "DECRYPTED for owner" }
+        type: { $ref: "#/components/schemas/InvestmentType" }
+        currency: { type: string }
+        archived: { type: boolean }
+        totalContributed: { type: integer, description: "minor units (cents), sum of contributions" }
+        currentValue: { type: [integer, "null"], description: "minor units (cents), latest valuation or null" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, name, type, currency, archived, totalContributed, currentValue, createdAt, updatedAt]
+
+    Contribution:
+      type: object
+      properties:
+        id: { type: string }
+        amount: { type: integer, description: "minor units (cents)" }
+        occurredOn: { type: string, format: date }
+        note: { type: [string, "null"], description: "DECRYPTED for owner" }
+        createdAt: { type: string, format: date-time }
+      required: [id, amount, occurredOn, note, createdAt]
+
+    Valuation:
+      type: object
+      properties:
+        id: { type: string }
+        currentValue: { type: integer, description: "minor units (cents)" }
+        recordedOn: { type: string, format: date }
+        createdAt: { type: string, format: date-time }
+      required: [id, currentValue, recordedOn, createdAt]
+
+    Card:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: [string, "null"], description: "DECRYPTED for owner" }
+        closingDay: { type: integer, minimum: 1, maximum: 31 }
+        dueDay: { type: integer, minimum: 1, maximum: 31 }
+        currency: { type: string }
+        archived: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, name, closingDay, dueDay, currency, archived, createdAt, updatedAt]
+
+    MileageRate:
+      type: object
+      properties:
+        id: { type: string }
+        milesPerUnit: { type: number, description: "decimal multiplier (NOT cents)" }
+        effectiveFrom: { type: string, format: date }
+        createdAt: { type: string, format: date-time }
+      required: [id, milesPerUnit, effectiveFrom, createdAt]
+
+    Invoice:
+      type: object
+      properties:
+        id: { type: string }
+        cardId: { type: string }
+        periodKey: { type: string, pattern: "^\\d{4}-\\d{2}$" }
+        periodStart: { type: string, format: date }
+        closingDate: { type: string, format: date }
+        dueDate: { type: string, format: date }
+        status: { $ref: "#/components/schemas/InvoiceStatus" }
+        closedAt: { type: [string, "null"], format: date-time }
+        paidAt: { type: [string, "null"], format: date-time }
+        total: { type: integer, description: "minor units (cents); derived on read" }
+        miles: { type: integer, description: "floor(total * rate@closing); derived, never stored" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, cardId, periodKey, periodStart, closingDate, dueDate, status, closedAt, paidAt, total, miles, createdAt, updatedAt]

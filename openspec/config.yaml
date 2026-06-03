@@ -1,0 +1,44 @@
+schema: spec-driven
+
+context: |
+  Frontend web responsivo (mobile-first) da Finance API — SPA React (Vite),
+  TypeScript. Deploy na Cloudflare Pages via Wrangler/CI; o proxy mesmo-origin de
+  /api/* é uma Pages Function no mesmo projeto (sem Worker separado, sem Terraform).
+  App 100% atrás de autenticação (sem SSR, sem SEO).
+
+  Contrato: este front CONSOME a Finance API (repo separado). O contrato real, como
+  implementado, está em CONTRACT.md — fonte da verdade para endpoints, shapes e status
+  codes. NUNCA inventar endpoint; o que faltar no CONTRACT.md é gap de backend, não
+  improviso de front.
+
+  Auth e sessão (responsabilidade do front):
+  - OIDC é tratado INTEIRAMENTE pelo backend. O front NUNCA vê client_secret, nunca
+    troca token, nunca processa id_token. Login = redirecionar o browser para
+    /auth/google/start do backend; logout = POST /auth/logout.
+  - Sessão é cookie HttpOnly+Secure+SameSite=Lax: o JS NÃO lê nem grava esse cookie;
+    o browser o anexa sozinho. Requisições usam credentials same-origin.
+  - Front e API no MESMO origin (app.dominio + app.dominio/api via rota do Worker):
+    sem CORS, cookie funciona direto.
+  - 401 → redirecionar para login. 404 em recurso alheio é ESPERADO (backend não
+    revela existência) — tratar como "não encontrado", não como erro de sistema.
+
+  Dados:
+  - description/external_ref chegam JÁ DECIFRADOS. O front NUNCA cifra nem decifra.
+  - Valores monetários vêm em centavos (inteiro); formatação é no front.
+
+  Segurança do front:
+  - NENHUM segredo no bundle — ele é público e tudo nele é visível.
+  - HttpOnly impede roubo do cookie por XSS, mas XSS ainda faria requisição
+    autenticada: higiene de XSS é obrigatória (sem dangerouslySetInnerHTML com dado
+    não sanitizado; CSP restritiva).
+
+rules:
+  proposal:
+    - Toda tela consome apenas endpoints presentes no CONTRACT.md; o que depender de contrato não implementado deve ser DIFERIDO.
+    - Primeira change cobre só: fluxo de login (redirect) + tela de transações (listar/criar). Difira dashboard, cartões, investimentos, recorrentes e admin.
+  specs:
+    - Cenário de sessão ausente/expirada (401 → login) em toda tela protegida.
+    - Estados de UI explícitos: carregando, vazio, erro, sem-sessão.
+  design:
+    - Documente a estratégia de mesmo-origin e por que não há CORS.
+    - Defina UMA camada única de cliente HTTP (wrapper de fetch) que centraliza tratamento de 401 e erros — o equivalente, no front, ao "ponto único de acesso" do backend.

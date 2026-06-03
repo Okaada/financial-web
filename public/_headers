@@ -1,0 +1,7 @@
+# Security headers the HTML <meta> tag cannot set. Complements the CSP already in
+# index.html (web-deploy spec). Applied to every Pages response.
+/*
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  X-Frame-Options: DENY

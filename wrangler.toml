@@ -1,0 +1,11 @@
+# Cloudflare Pages project: serves the SPA from `dist/` and runs the same-origin proxy
+# in `functions/api/[[path]].ts`. One project, one deploy (`wrangler pages deploy dist`).
+name = "finance-web"
+compatibility_date = "2026-06-01"
+pages_build_output_dir = "dist"
+
+# Internal Worker-to-Worker binding the Pages Function uses to reach the Finance API
+# (no public hop, no CORS). The `finance-api` Worker must already exist in this account.
+[[services]]
+binding = "FINANCE_API"
+service = "finance-api"

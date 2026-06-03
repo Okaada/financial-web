@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- App 100% atrás de autenticação: sem SEO, sem indexação. -->
+    <meta name="robots" content="noindex, nofollow" />
+    <!--
+      CSP restritiva (design.md, Riscos): mesmo com cookie HttpOnly, um XSS faria
+      requisição autenticada — então não permitimos origem de script externa nem
+      conexão fora do próprio origin. Ajustar via header do Worker em produção.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+    />
+    <title>Finance</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
