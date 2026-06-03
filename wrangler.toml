@@ -4,6 +4,14 @@ name = "finance-web"
 main = "worker/index.ts"
 compatibility_date = "2026-06-01"
 
+# Custom domain for the SPA. `custom_domain = true` makes wrangler provision the hostname
+# (DNS record + SSL) and route ALL of `financial.gatolandios.com.br` to this Worker — both
+# the SPA and `/api/*` (which the Worker then splits internally). Zone must be in this
+# account. Declared here so every deploy keeps the domain attached.
+routes = [
+  { pattern = "financial.gatolandios.com.br", custom_domain = true },
+]
+
 # Static assets (the SPA build). SPA fallback serves index.html for client-side routes.
 [assets]
 directory = "./dist"

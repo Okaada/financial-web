@@ -17,10 +17,10 @@
 - [x] 3.2 Build command `npm run build` e deploy command `npx wrangler deploy` nas configurações de Build
 - [x] 3.3 Sem secrets no repo/bundle — a Cloudflare Builds roda no contexto da conta
 
-## 4. Provisionamento (uma vez)
+## 4. Domínio custom e provisionamento
 
-- [x] 4.1 Documentar a anexação do domínio custom `financial.gatolandios.com.br` ao Worker `finance-web`
-- [x] 4.2 Sem Terraform: front simples sem segredos; o provisionamento é a conexão do repo + domínio, o deploy é o próprio `wrangler deploy`
+- [x] 4.1 Declarar o domínio custom `financial.gatolandios.com.br` no `wrangler.toml` (`routes` com `custom_domain = true`): `wrangler deploy` provisiona DNS + SSL e mantém o host anexado ao Worker, sem passo manual
+- [x] 4.2 Sem Terraform: front simples sem segredos; o provisionamento é a conexão do repo + o domínio declarado no `wrangler.toml`, o deploy é o próprio `wrangler deploy`
 
 ## 5. Documentação e verificação
 

@@ -8,9 +8,11 @@ binding — sem CORS, sem projeto separado. Deploy com `wrangler deploy`.
 
 - O Worker **`finance-api`** existe na mesma conta Cloudflare (alvo do service binding
   `FINANCE_API` em `wrangler.toml`). Se o nome mudar, ajuste o `service` lá.
-- Domínio custom `financial.gatolandios.com.br` apontado para o Worker `finance-web`
-  (Workers → finance-web → Settings → Domains & Routes → Add custom domain). A Cloudflare
-  gerencia o DNS na zone.
+- A zone `gatolandios.com.br` está ativa na conta. O domínio custom
+  `financial.gatolandios.com.br` é declarado em `wrangler.toml`
+  (`routes = [{ pattern = "financial.gatolandios.com.br", custom_domain = true }]`): o
+  próprio `wrangler deploy` provisiona o hostname (DNS + SSL) e o mantém anexado ao Worker.
+  Não há passo manual no painel.
 
 ## Deploy (Cloudflare Builds — conectado ao repositório)
 
@@ -36,10 +38,14 @@ Validar a config sem publicar (offline): `npx wrangler deploy --dry-run`.
 
 ## Como o mesmo-origin funciona
 
-- O Worker recebe toda requisição. `/api/*` é encaminhado à Finance API (prefixo `/api`
-  removido: `/api/auth/login` → `/auth/login`) via service binding — espelha o `rewrite` do
-  `vite.config.ts` em dev. Todo o resto vai para `env.ASSETS` (SPA), com fallback
-  `index.html` via `not_found_handling = "single-page-application"`.
+- O custom domain manda **todo** o tráfego de `financial.gatolandios.com.br` para o Worker
+  `finance-web` — não só o SPA, mas também `/api/*`.
+- O front sempre chama caminhos relativos `/api/...` (`src/api/paths.ts`), então o browser
+  bate no mesmo host e anexa o cookie `fa_session` automaticamente.
+- O Worker recebe toda requisição e separa: `/api/*` é encaminhado à Finance API (prefixo
+  `/api` removido: `/api/auth/login` → `/auth/login`) via service binding — espelha o
+  `rewrite` do `vite.config.ts` em dev. Todo o resto vai para `env.ASSETS` (SPA), com
+  fallback `index.html` via `not_found_handling = "single-page-application"`.
 - O cookie `fa_session` é **host-only** para `financial.gatolandios.com.br`; como login,
   callback e o `302 → /` passam pelo mesmo host, o ciclo fecha sem CORS nem `SameSite=None`.
 - Headers de segurança extra (HSTS, `nosniff`, `Referrer-Policy`) vêm de `public/_headers`,

@@ -16,8 +16,11 @@ diretório de build `dist/`, servido no domínio custom `financial.gatolandios.c
 
 #### Scenario: Domínio custom
 
-- **WHEN** o Worker está publicado e o domínio custom anexado
-- **THEN** ele responde em `financial.gatolandios.com.br` (zone `gatolandios.com.br`)
+- **WHEN** o deploy é executado com o domínio declarado em `wrangler.toml`
+  (`routes` com `custom_domain = true`)
+- **THEN** `wrangler` provisiona/mantém `financial.gatolandios.com.br` (DNS + SSL, zone
+  `gatolandios.com.br`) apontando todo o tráfego do host para o Worker
+- **AND** tanto o SPA quanto `/api/*` chegam ao Worker pelo mesmo host
 
 ### Requirement: Fallback de SPA
 

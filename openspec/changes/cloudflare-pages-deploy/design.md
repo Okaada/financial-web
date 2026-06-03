@@ -91,10 +91,13 @@ O backend seta `fa_session` com `Path=/; HttpOnly; Secure; SameSite=Lax` e **sem
   vista do browser. `SameSite=Lax` basta para navegação top-level (o login é exatamente
   isso).
 
-### D5 — Provisionamento mínimo (sem Terraform)
+### D5 — Provisionamento mínimo (sem Terraform); domínio no `wrangler.toml`
 
-Não há IaC. O provisionamento é: conectar o repo à Cloudflare Builds e anexar o domínio
-custom `financial.gatolandios.com.br` ao Worker `finance-web` (uma vez). O deploy contínuo é
+Não há IaC. O provisionamento é: conectar o repo à Cloudflare Builds (uma vez) e declarar o
+domínio custom `financial.gatolandios.com.br` no `wrangler.toml` (`routes` com
+`custom_domain = true`) — assim o próprio `wrangler deploy` provisiona o hostname (DNS +
+SSL) e o mantém anexado ao Worker, sem clicar no painel. O custom domain manda **todo** o
+tráfego do host ao Worker (SPA + `/api/*`), que separa internamente (D1). O deploy contínuo é
 `wrangler deploy` a cada push em `main`.
 
 - **Por que:** para um front simples sem segredos, Terraform adicionava cerimônia (provider,
