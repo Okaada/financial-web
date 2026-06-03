@@ -6,18 +6,28 @@
 
 import { useState } from 'react'
 import { logout } from './api/session'
+import { CardsScreen } from './features/cards/CardsScreen'
 import { CategoriesScreen } from './features/categories/CategoriesScreen'
+import { InvestmentsScreen } from './features/investments/InvestmentsScreen'
 import { RecurringOccurrencesScreen } from './features/recurring/RecurringOccurrencesScreen'
 import { RecurringTemplatesScreen } from './features/recurring/RecurringTemplatesScreen'
 import { TransactionsScreen } from './features/transactions/TransactionsScreen'
 
-type View = 'transactions' | 'categories' | 'recurring' | 'occurrences'
+type View =
+  | 'transactions'
+  | 'categories'
+  | 'recurring'
+  | 'occurrences'
+  | 'investments'
+  | 'cards'
 
 const VIEWS: { id: View; label: string }[] = [
   { id: 'transactions', label: 'Transações' },
   { id: 'categories', label: 'Categorias' },
   { id: 'recurring', label: 'Recorrentes' },
   { id: 'occurrences', label: 'Previstos' },
+  { id: 'investments', label: 'Investimentos' },
+  { id: 'cards', label: 'Cartões' },
 ]
 
 const SCREENS: Record<View, () => React.JSX.Element> = {
@@ -25,6 +35,8 @@ const SCREENS: Record<View, () => React.JSX.Element> = {
   categories: CategoriesScreen,
   recurring: RecurringTemplatesScreen,
   occurrences: RecurringOccurrencesScreen,
+  investments: InvestmentsScreen,
+  cards: CardsScreen,
 }
 
 export default function App() {

@@ -28,6 +28,7 @@ export interface CreateTransactionInput {
   currency: string
   occurredOn: string // YYYY-MM-DD
   categoryId?: string
+  cardId?: string
   description?: string
 }
 
@@ -145,6 +146,143 @@ export interface RecurringTemplateFilters {
 export interface OccurrenceRange {
   from: string // YYYY-MM-DD
   to: string // YYYY-MM-DD
+}
+
+/** CONTRACT.md §7 — fixed investment taxonomy. */
+export type InvestmentType = 'renda_fixa' | 'acoes' | 'fii' | 'cripto' | 'outro'
+
+/**
+ * CONTRACT.md §7 — Investment. `totalContributed`/`currentValue` are aggregates computed
+ * by the backend (cents); the front never recomputes them. `currentValue` is null until a
+ * valuation exists. `name` is DECRYPTED for the owner.
+ */
+export interface Investment {
+  id: string
+  name: string | null
+  type: InvestmentType
+  currency: string
+  archived: boolean
+  totalContributed: number // cents (aggregate)
+  currentValue: number | null // cents (latest valuation) or null
+  createdAt: string
+  updatedAt: string
+}
+
+/** CONTRACT.md §7 — Contribution (aporte). `note` DECRYPTED. */
+export interface Contribution {
+  id: string
+  amount: number // cents
+  occurredOn: string // YYYY-MM-DD
+  note: string | null
+  createdAt: string
+}
+
+/** CONTRACT.md §7 — Valuation (marcação de valor). Append-only. */
+export interface Valuation {
+  id: string
+  currentValue: number // cents
+  recordedOn: string // YYYY-MM-DD
+  createdAt: string
+}
+
+export interface CreateInvestmentInput {
+  type: InvestmentType
+  currency: string
+  name?: string
+}
+
+/** PUT /investments/:id — rename only. */
+export interface RenameInvestmentInput {
+  name: string
+}
+
+export interface CreateContributionInput {
+  amount: number // cents, integer > 0
+  occurredOn: string // YYYY-MM-DD
+  note?: string
+}
+
+export interface CreateValuationInput {
+  currentValue: number // cents
+  recordedOn: string // YYYY-MM-DD
+}
+
+/** Query filters for GET /investments; empty values are omitted. */
+export interface InvestmentFilters {
+  archived?: boolean
+}
+
+/** CONTRACT.md §8 — Credit card. `name` DECRYPTED. `closingDay` is immutable after create. */
+export interface Card {
+  id: string
+  name: string | null
+  closingDay: number // 1-31 (calendar integer, NOT cents)
+  dueDay: number // 1-31
+  currency: string
+  archived: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+/** CONTRACT.md §8 — Mileage rate. `milesPerUnit` is a DECIMAL multiplier, NOT cents. */
+export interface MileageRate {
+  id: string
+  milesPerUnit: number // decimal multiplier
+  effectiveFrom: string // YYYY-MM-DD
+  createdAt: string
+}
+
+/** CONTRACT.md §8 — accumulated miles. `totalMiles` is an integer count, NOT cents. */
+export interface CardMiles {
+  cardId: string
+  totalMiles: number // integer count
+}
+
+export type InvoiceStatus = 'open' | 'closed' | 'paid'
+
+/** CONTRACT.md §8 — Invoice. `total` is cents; `miles` is a derived integer count. */
+export interface Invoice {
+  id: string
+  cardId: string
+  periodKey: string // YYYY-MM
+  periodStart: string // YYYY-MM-DD
+  closingDate: string // YYYY-MM-DD
+  dueDate: string // YYYY-MM-DD
+  status: InvoiceStatus
+  closedAt: string | null
+  paidAt: string | null
+  total: number // cents
+  miles: number // integer (derived)
+  createdAt: string
+  updatedAt: string
+}
+
+/** GET /invoices/:id additionally includes the composing transactions. */
+export interface InvoiceDetail extends Invoice {
+  transactions: Transaction[]
+}
+
+export interface CreateCardInput {
+  name?: string
+  closingDay: number // 1-31
+  dueDay: number // 1-31
+  currency: string
+}
+
+/** PUT /cards/:id — name/dueDay only; closingDay is immutable. */
+export interface UpdateCardInput {
+  name?: string
+  dueDay?: number
+}
+
+export interface CreateRateInput {
+  milesPerUnit: number // decimal multiplier
+  effectiveFrom: string // YYYY-MM-DD
+}
+
+/** Query filters for GET /cards; empty values are omitted. */
+export interface CardFilters {
+  archived?: boolean
 }
 
 /** Standard list envelope used by every collection endpoint. */

@@ -14,6 +14,7 @@ import type {
   UpdateTransactionInput,
 } from '../../api/types'
 import { centsToInput, parseToCents } from '../../lib/money'
+import { CardSelect } from '../cards/CardSelect'
 import { createTransaction, updateTransaction } from './api'
 import { CategorySelect } from './CategorySelect'
 
@@ -34,16 +35,19 @@ export function TransactionForm({ initial, onSaved, onCancel }: TransactionFormP
   const [currency, setCurrency] = useState(initial?.currency ?? DEFAULT_CURRENCY)
   const [occurredOn, setOccurredOn] = useState(initial?.occurredOn ?? '')
   const [categoryId, setCategoryId] = useState(initial?.categoryId ?? '')
+  const [cardId, setCardId] = useState(initial?.cardId ?? '')
   const [description, setDescription] = useState(initial?.description ?? '')
 
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [categoryError, setCategoryError] = useState<string | null>(null)
+  const [cardError, setCardError] = useState<string | null>(null)
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
     setFormError(null)
     setCategoryError(null)
+    setCardError(null)
 
     const amount = parseToCents(amountInput)
     if (amount === null) {
@@ -67,13 +71,14 @@ export function TransactionForm({ initial, onSaved, onCancel }: TransactionFormP
           currency,
           occurredOn,
           categoryId: categoryId === '' ? null : categoryId,
-          cardId: initial.cardId,
+          cardId: cardId === '' ? null : cardId,
         }
         if (description.trim() !== '') body.description = description.trim()
         saved = await updateTransaction(initial.id, body)
       } else {
         const body: CreateTransactionInput = { type, amount, currency, occurredOn }
         if (categoryId !== '') body.categoryId = categoryId
+        if (cardId !== '') body.cardId = cardId
         if (description.trim() !== '') body.description = description.trim()
         saved = await createTransaction(body)
       }
@@ -84,15 +89,18 @@ export function TransactionForm({ initial, onSaved, onCancel }: TransactionFormP
         setAmountInput('')
         setOccurredOn('')
         setCategoryId('')
+        setCardId('')
         setDescription('')
       }
     } catch (err) {
       // 401 is handled centrally (redirect). Here we only get 400/404/5xx.
       if (err instanceof ApiError && err.status === 400) {
-        // A body-referenced categoryId that is invalid/archived/not-owned returns 400
-        // (CONTRACT.md §1) — surface it on the category field; existence is never
+        // A body-referenced categoryId/cardId that is invalid/archived/not-owned returns
+        // 400 (CONTRACT.md §1) — surface it on the matching field; existence is never
         // confirmed, so we just ask the user to pick another.
-        if (/categor/i.test(err.message) || /category/i.test(err.code)) {
+        if (/cart|card/i.test(err.message) || /card/i.test(err.code)) {
+          setCardError(err.message)
+        } else if (/categor/i.test(err.message) || /category/i.test(err.code)) {
           setCategoryError(err.message)
         } else {
           setFormError(err.message)
@@ -161,6 +169,11 @@ export function TransactionForm({ initial, onSaved, onCancel }: TransactionFormP
       <div className="field">
         <CategorySelect value={categoryId} onChange={setCategoryId} disabled={submitting} />
         {categoryError && <span className="field-error">{categoryError}</span>}
+      </div>
+
+      <div className="field">
+        <CardSelect value={cardId} onChange={setCardId} disabled={submitting} />
+        {cardError && <span className="field-error">{cardError}</span>}
       </div>
 
       <label>

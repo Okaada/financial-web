@@ -15,6 +15,9 @@ export const CATEGORIES_PATH = `${API_PREFIX}/categories`
 
 export const RECURRING_TEMPLATES_PATH = `${API_PREFIX}/recurring-templates`
 export const RECURRING_OCCURRENCES_PATH = `${API_PREFIX}/recurring-occurrences`
+export const INVESTMENTS_PATH = `${API_PREFIX}/investments`
+export const CARDS_PATH = `${API_PREFIX}/cards`
+export const INVOICES_PATH = `${API_PREFIX}/invoices`
 
 // Resource-scoped paths (ids are URL-encoded; a 404 here means "not found / not owned").
 export const transactionPath = (id: string) => `${TRANSACTIONS_PATH}/${encodeURIComponent(id)}`
@@ -23,3 +26,15 @@ export const categoryArchivePath = (id: string) => `${categoryPath(id)}/archive`
 export const recurringTemplatePath = (id: string) =>
   `${RECURRING_TEMPLATES_PATH}/${encodeURIComponent(id)}`
 export const recurringConfirmPath = (id: string) => `${recurringTemplatePath(id)}/confirm`
+export const investmentPath = (id: string) => `${INVESTMENTS_PATH}/${encodeURIComponent(id)}`
+export const investmentArchivePath = (id: string) => `${investmentPath(id)}/archive`
+export const investmentContributionsPath = (id: string) => `${investmentPath(id)}/contributions`
+export const investmentValuationsPath = (id: string) => `${investmentPath(id)}/valuations`
+export const cardPath = (id: string) => `${CARDS_PATH}/${encodeURIComponent(id)}`
+export const cardArchivePath = (id: string) => `${cardPath(id)}/archive`
+export const cardRatesPath = (id: string) => `${cardPath(id)}/rates`
+export const cardMilesPath = (id: string) => `${cardPath(id)}/miles`
+export const cardInvoicesPath = (id: string) => `${cardPath(id)}/invoices`
+export const invoicePath = (id: string) => `${INVOICES_PATH}/${encodeURIComponent(id)}`
+export const invoiceClosePath = (id: string) => `${invoicePath(id)}/close`
+export const invoicePayPath = (id: string) => `${invoicePath(id)}/pay`
