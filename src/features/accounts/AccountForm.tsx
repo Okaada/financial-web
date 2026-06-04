@@ -1,6 +1,7 @@
 // Create/edit form for a bank account. On create, currency is editable; on edit it is
 // read-only (immutable per CONTRACT §3.5 — never sent). openingBalance is in cents and may
-// be negative. A 400 surfaces the backend's error.message inline without losing input.
+// be negative — hidden for kind=investment (balance comes from linked investments, not a seed
+// value). A 400 surfaces the backend's error.message inline without losing input.
 
 import { useState, type FormEvent } from 'react'
 import { ApiError, UnauthenticatedError } from '../../api/client'
@@ -40,10 +41,16 @@ export function AccountForm({ mode, initial, onCreate, onUpdate, onCancel }: Acc
       setError('Informe a moeda (currency).')
       return
     }
-    const cents = parseToCentsSigned(openingBalance)
-    if (cents === null) {
-      setError('Saldo inicial inválido (use centavos, ex.: 10,00 ou -10,00).')
-      return
+    // Investment accounts don't use an opening balance — their "balance" is the sum of
+    // linked investments. Always send 0; only validate the field for non-investment kinds.
+    let cents = 0
+    if (kind !== 'investment') {
+      const parsed = parseToCentsSigned(openingBalance)
+      if (parsed === null) {
+        setError('Saldo inicial inválido (use centavos, ex.: 10,00 ou -10,00).')
+        return
+      }
+      cents = parsed
     }
 
     setSubmitting(true)
@@ -97,17 +104,19 @@ export function AccountForm({ mode, initial, onCreate, onUpdate, onCancel }: Acc
         )}
       </label>
 
-      <label>
-        Saldo inicial (pode ser negativo)
-        <input
-          type="text"
-          inputMode="decimal"
-          value={openingBalance}
-          onChange={(e) => setOpeningBalance(e.target.value)}
-          disabled={submitting}
-          placeholder="0,00"
-        />
-      </label>
+      {kind !== 'investment' && (
+        <label>
+          Saldo inicial (pode ser negativo)
+          <input
+            type="text"
+            inputMode="decimal"
+            value={openingBalance}
+            onChange={(e) => setOpeningBalance(e.target.value)}
+            disabled={submitting}
+            placeholder="0,00"
+          />
+        </label>
+      )}
 
       {error && (
         <p className="form-error" role="alert">

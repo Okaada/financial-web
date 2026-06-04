@@ -159,9 +159,8 @@ export type InvestmentType = 'renda_fixa' | 'acoes' | 'fii' | 'cripto' | 'outro'
 /**
  * CONTRACT.md §7 — Investment. `totalContributed`/`totalInvested`/`currentValue` are
  * aggregates computed by the backend (cents); the front never recomputes them.
- * `totalInvested = totalContributed` (sum of contributions — all value enters via aportes).
- * `currentValue` is the latest valuation (or null) and is INDEPENDENT of totalInvested.
- * `name` is DECRYPTED for the owner.
+ * `totalInvested = initialValue + totalContributed`. `currentValue` is the latest valuation
+ * (or null) and is INDEPENDENT of totalInvested. `name` is DECRYPTED for the owner.
  */
 export interface Investment {
   id: string
@@ -169,8 +168,9 @@ export interface Investment {
   type: InvestmentType
   currency: string
   archived: boolean
+  initialValue: number // cents (integer; may be negative)
   totalContributed: number // cents (aggregate, sum of contributions)
-  totalInvested: number // cents = totalContributed (derived, read-only)
+  totalInvested: number // cents = initialValue + totalContributed (derived, read-only)
   currentValue: number | null // cents (latest valuation) or null
   accountId: string | null // linked investment account (kind=investment) or null
   createdAt: string
@@ -198,12 +198,14 @@ export interface CreateInvestmentInput {
   name: string
   type: InvestmentType
   currency: string
+  initialValue?: number // cents (integer; may be negative; default 0)
   accountId?: string
 }
 
-/** PUT /investments/:id — name/accountId; type/currency/initialValue immutable/removed (not sent). */
+/** PUT /investments/:id — name/initialValue/accountId; type/currency immutable (not sent). */
 export interface UpdateInvestmentInput {
   name: string
+  initialValue: number // cents
   accountId: string | null // null clears the link
 }
 

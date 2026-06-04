@@ -5,6 +5,7 @@
 import { useRef, useState } from 'react'
 import { ApiError, UnauthenticatedError } from '../../api/client'
 import type { CreateInvestmentInput, Investment, InvestmentType } from '../../api/types'
+import { parseToCentsSigned } from '../../lib/money'
 import { AccountSelect } from '../accounts/AccountSelect'
 import { createBatch } from './api'
 import { INVESTMENT_TYPES } from './taxonomy'
@@ -17,6 +18,7 @@ interface Row {
   name: string
   type: InvestmentType
   currency: string
+  initialValue: string
   accountId: string
 }
 
@@ -26,16 +28,19 @@ interface InvestmentBatchScreenProps {
 }
 
 function emptyRow(key: number): Row {
-  return { key, name: '', type: 'renda_fixa', currency: DEFAULT_CURRENCY, accountId: '' }
+  return { key, name: '', type: 'renda_fixa', currency: DEFAULT_CURRENCY, initialValue: '', accountId: '' }
 }
 
 /** Build the API item for a row, or null when locally invalid. */
 function toItem(row: Row): CreateInvestmentInput | null {
   if (row.name.trim() === '' || row.currency.trim() === '') return null
+  const initial = parseToCentsSigned(row.initialValue)
+  if (initial === null) return null
   const item: CreateInvestmentInput = {
     name: row.name.trim(),
     type: row.type,
     currency: row.currency.trim(),
+    initialValue: initial,
   }
   if (row.accountId !== '') item.accountId = row.accountId
   return item
@@ -59,7 +64,7 @@ export function InvestmentBatchScreen({ onBack, onCreated }: InvestmentBatchScre
     setRows((prev) => prev.filter((r) => r.key !== key))
   }
 
-  const filledRows = rows.filter((r) => r.name.trim() !== '')
+  const filledRows = rows.filter((r) => r.name.trim() !== '' || r.initialValue.trim() !== '')
   const items = filledRows.map(toItem)
   const hasInvalid = items.some((it) => it === null)
   const canSubmit = !submitting && filledRows.length > 0 && filledRows.length <= MAX_ITEMS && !hasInvalid
@@ -114,8 +119,8 @@ export function InvestmentBatchScreen({ onBack, onCreated }: InvestmentBatchScre
       </div>
 
       <p className="account-hint">
-        Tudo-ou-nada: se um item for inválido, nenhum é gravado. Máx {MAX_ITEMS}. Para
-        registrar um valor inicial, lance um aporte após criar o investimento.
+        Tudo-ou-nada: se um item for inválido, nenhum é gravado. Máx {MAX_ITEMS}. Valor inicial
+        em centavos (pode ser negativo).
       </p>
 
       <ul className="batch-grid">
@@ -158,6 +163,17 @@ export function InvestmentBatchScreen({ onBack, onCreated }: InvestmentBatchScre
                   disabled={submitting}
                 />
               </label>
+              <label className="batch-cell">
+                Valor inicial
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="0,00"
+                  value={row.initialValue}
+                  onChange={(e) => updateRow(row.key, { initialValue: e.target.value })}
+                  disabled={submitting}
+                />
+              </label>
               <div className="batch-cell">
                 <AccountSelect
                   value={row.accountId}
@@ -177,7 +193,7 @@ export function InvestmentBatchScreen({ onBack, onCreated }: InvestmentBatchScre
                 ✕
               </button>
               {highlighted && <span className="field-error">{rowError?.message}</span>}
-              {!highlighted && localInvalid && <span className="field-error">Nome/moeda inválidos.</span>}
+              {!highlighted && localInvalid && <span className="field-error">Nome/moeda/valor inválidos.</span>}
             </li>
           )
         })}

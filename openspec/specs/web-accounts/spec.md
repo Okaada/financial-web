@@ -64,7 +64,8 @@ da lista completa retornada (sem paginação); NÃO SHALL recalcular saldos nem 
 A tela SHALL permitir criar uma conta via `POST /api/accounts` com
 `{ name, kind, currency, openingBalance? }`, onde `kind ∈ {checking, cash, wallet,
 investment}` e `openingBalance` é inteiro em centavos (pode ser negativo, default `0`). O
-front SHALL validar `kind`/`currency` antes de enviar.
+front SHALL validar `kind`/`currency` antes de enviar. Quando `kind = investment`, o campo
+"Saldo inicial" SHALL ser ocultado e o app SHALL enviar `openingBalance: 0` automaticamente.
 
 #### Scenario: Criação bem-sucedida
 
@@ -83,6 +84,12 @@ front SHALL validar `kind`/`currency` antes de enviar.
 - **WHEN** o usuário informa um saldo inicial (ex.: `-10,00`)
 - **THEN** o app converte para centavos inteiros (`-1000`) antes de enviar; se omitido, envia
   `0` ou omite o campo
+
+#### Scenario: Conta de investimento oculta o campo saldo inicial
+
+- **WHEN** o usuário seleciona `kind = investment` no formulário de criação
+- **THEN** o campo "Saldo inicial" é ocultado e o app envia `openingBalance: 0`
+  automaticamente, sem expor nem requerer que o usuário preencha esse campo
 
 #### Scenario: Validação 400
 

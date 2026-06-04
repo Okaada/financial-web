@@ -2,12 +2,12 @@
 
 ## Purpose
 
-Definir a tela de investimentos: listar (com agregados `totalContributed`/`totalInvested`/
+Definir a tela de investimentos: listar (com agregados `initialValue`/`totalContributed`/`totalInvested`/
 `currentValue` vindos do backend), criar (taxonomia fixa, vínculo opcional a conta
-`kind=investment`), editar (`name`/`accountId`; `type`/`currency` imutáveis), arquivar,
+`kind=investment`), editar (`name`/`initialValue`/`accountId`; `type`/`currency` imutáveis), arquivar,
 registrar aportes e marcações de valor (valuations), e um dashboard que agrupa `totalInvested`
 por conta e por tipo (por moeda). O front nunca recalcula agregados — re-busca o investimento
-após aporte/valuation; `totalInvested` (= `totalContributed`, soma dos aportes) e `currentValue`
+após aporte/valuation; `totalInvested` (= `initialValue` + `totalContributed`) e `currentValue`
 (última valuation, independente) são exibidos distintamente.
 
 ## Requirements
@@ -16,10 +16,10 @@ após aporte/valuation; `totalInvested` (= `totalContributed`, soma dos aportes)
 
 A tela SHALL listar os investimentos via `GET /api/investments` (filtros `archived` e
 `accountId` opcionais), lendo `{ "items": [...] }`, e SHALL exibir `name`, `type` legível,
-`totalInvested` (= `totalContributed`, soma dos aportes) e `currentValue`
+`initialValue`, `totalInvested` (= `initialValue` + `totalContributed`) e `currentValue`
 **formatados a partir dos centavos agregados pelo backend**, com `totalInvested` e
-`currentValue` apresentados **distintamente** (o que se colocou via aportes vs. o que vale
-hoje). O front NÃO SHALL recalcular esses agregados.
+`currentValue` apresentados **distintamente** (o valor que se colocou vs. o que vale hoje). O
+front NÃO SHALL recalcular esses agregados.
 
 #### Scenario: Lista com itens
 
@@ -51,14 +51,14 @@ hoje). O front NÃO SHALL recalcular esses agregados.
 ### Requirement: Criar investimento
 
 A tela SHALL permitir criar um investimento via `POST /api/investments` com o corpo
-`{ name, type, currency, accountId? }`, onde `name` é obrigatório, `type`
-pertence à taxonomia `renda_fixa | acoes | fii | cripto | outro`, e `currency` é não-vazia.
-O campo `initialValue` NÃO SHALL ser enviado.
+`{ name, type, currency, initialValue?, accountId? }`, onde `name` é obrigatório, `type`
+pertence à taxonomia `renda_fixa | acoes | fii | cripto | outro`, `currency` é não-vazia, e
+`initialValue` é inteiro em centavos (pode ser negativo, default `0`).
 
 #### Scenario: Criação bem-sucedida
 
-- **WHEN** o usuário informa `name`, `type`/`currency` válidos e opcionalmente `accountId`, e
-  submete
+- **WHEN** o usuário informa `name`, `type`/`currency` válidos, e opcionalmente `initialValue`
+  (centavos) e `accountId`, e submete
 - **THEN** o app envia `POST /api/investments` e, ao receber `201`, inclui o investimento na
   lista
 
@@ -67,23 +67,29 @@ O campo `initialValue` NÃO SHALL ser enviado.
 - **WHEN** o formulário oferece o campo `type`
 - **THEN** as opções são exatamente `renda_fixa`, `acoes`, `fii`, `cripto`, `outro`
 
+#### Scenario: Valor inicial em centavos (pode ser negativo)
+
+- **WHEN** o usuário informa um valor inicial (ex.: `-10,00`)
+- **THEN** o app converte para centavos inteiros (`-1000`) antes de enviar; se omitido, envia
+  `0` ou omite o campo
+
 #### Scenario: Validação 400
 
-- **WHEN** `POST /api/investments` retorna `400` (`type`/`currency`/`accountId` inválidos)
+- **WHEN** `POST /api/investments` retorna `400` (`type`/`currency`/`initialValue`/`accountId`
+  inválidos)
 - **THEN** a tela exibe a `error.message` junto ao formulário sem perder os dados digitados
 
 ### Requirement: Editar investimento
 
 A tela SHALL permitir editar um investimento via `PUT /api/investments/:id` enviando
-`{ name, accountId }`. `type` e `currency` são **imutáveis** e NÃO SHALL ser
-enviados; `accountId: null` limpa o vínculo com a conta. O campo `initialValue`
-NÃO SHALL ser enviado.
+`{ name, initialValue, accountId }`. `type` e `currency` são **imutáveis** e NÃO SHALL ser
+enviados; `accountId: null` limpa o vínculo com a conta.
 
 #### Scenario: Edição bem-sucedida
 
-- **WHEN** o usuário altera `name`/`accountId` e submete
-- **THEN** o app envia `PUT /api/investments/:id` **sem** `type`/`currency`/`initialValue`
-  e, ao receber `200`, reflete a mudança
+- **WHEN** o usuário altera `name`/`initialValue`/`accountId` e submete
+- **THEN** o app envia `PUT /api/investments/:id` **sem** `type`/`currency` e, ao receber
+  `200`, reflete a mudança (incluindo o novo `totalInvested`, se vier)
 
 #### Scenario: type e currency somente-leitura
 

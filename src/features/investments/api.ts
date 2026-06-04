@@ -38,7 +38,7 @@ export function getInvestment(id: string): Promise<Investment> {
   return apiGet<Investment>(investmentPath(id))
 }
 
-/** POST /api/investments { name, type, currency, accountId? } -> 201. */
+/** POST /api/investments { name, type, currency, initialValue?, accountId? } -> 201. */
 export function createInvestment(input: CreateInvestmentInput): Promise<Investment> {
   return apiPost<Investment>(INVESTMENTS_PATH, input)
 }
@@ -52,7 +52,7 @@ export async function createBatch(items: CreateInvestmentInput[]): Promise<Inves
   return data.items
 }
 
-/** PUT /api/investments/:id { name, accountId } -> 200. type/currency/initialValue immutable/removed. */
+/** PUT /api/investments/:id { name, initialValue, accountId } -> 200. type/currency immutable (not sent). */
 export function updateInvestment(id: string, input: UpdateInvestmentInput): Promise<Investment> {
   return apiPut<Investment>(investmentPath(id), input)
 }

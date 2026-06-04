@@ -1,9 +1,9 @@
 // One investment row that expands inline to reveal actions (web-investments): edit
-// (name/account; type/currency immutable), archive, register a contribution and a valuation.
-// Figures are shown distinctly: total invested (= sum of aportes) and current value (latest
-// valuation, independent). After a contribution/valuation the investment is re-fetched so
-// aggregates come from the backend (the front never sums); the contribution surfaces the
-// updated totalInvested as feedback.
+// (name/initialValue/account; type/currency immutable), archive, register a contribution and
+// a valuation. Figures are shown distinctly: initial, total invested (= initial + aportes),
+// and current value (latest valuation, independent). After a contribution/valuation the
+// investment is re-fetched so aggregates come from the backend (the front never sums); the
+// contribution surfaces the updated totalInvested as feedback.
 
 import { useState, type FormEvent } from 'react'
 import { ApiError, UnauthenticatedError } from '../../api/client'
@@ -129,6 +129,10 @@ export function InvestmentCard({ investment, onChange }: InvestmentCardProps) {
       {investment.archived && <span className="badge">arquivado</span>}
 
       <span className="invest-figures">
+        <span className="invest-figure">
+          <small>Inicial</small>
+          {formatCents(investment.initialValue, investment.currency)}
+        </span>
         <span className="invest-figure">
           <small>Investido</small>
           {formatCents(investment.totalInvested, investment.currency)}
