@@ -1,6 +1,6 @@
 # Single Cloudflare Worker (Workers + Static Assets): serves the SPA from `dist/` and
 # proxies `/api/*` to the Finance API. Deployed with `wrangler deploy`.
-name = "finance-web"
+name = "financial-web"
 main = "worker/index.ts"
 compatibility_date = "2026-06-01"
 
