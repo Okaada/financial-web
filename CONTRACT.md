@@ -263,21 +263,25 @@ transaction with `200` instead of duplicating.
 **Investment object** (`name` **DECRYPTED**; amounts in cents):
 ```json
 {
-  "id": "uuid", "name": "string"|null,
+  "id": "uuid", "name": "string",
   "type": "renda_fixa"|"acoes"|"fii"|"cripto"|"outro", "currency": "BRL",
   "archived": false,
-  "totalContributed": 15000,         // cents, sum of contributions
-  "currentValue": 16000 | null,      // cents, latest valuation or null
+  "initialValue": 0,                 // cents (integer; may be negative; default 0)
+  "totalContributed": 15000,         // cents, sum of contributions (derived)
+  "totalInvested": 15000,            // cents = initialValue + totalContributed (derived, read-only)
+  "currentValue": 16000 | null,      // cents, latest valuation by recordedOn, or null
+  "accountId": "uuid" | null,        // linked investment account (kind=investment) or null
   "createdAt": "iso-utc", "updatedAt": "iso-utc"
 }
 ```
 
 | Method | Path | Request | Success | Errors |
 |---|---|---|---|---|
-| POST | `/investments` | `{ name?, type, currency }` | `201` | `400` bad `type`/`currency`; `401` |
-| GET | `/investments` | query: `archived` | `200` `{ "items": [...] }` | `401` |
+| POST | `/investments` | `{ name, type, currency, initialValue?, accountId? }` | `201` | `400` bad `type`/`currency`/`initialValue`/`accountId`; `401` |
+| POST | `/investments/batch` | **array** of items (each the same shape as POST) | `201` `{ "items": [...] }` | `400` (see batch rules — body adds `index`); `401` |
+| GET | `/investments` | query: `archived`, `accountId` | `200` `{ "items": [...] }` | `401` |
 | GET | `/investments/:id` | — | `200` | `404`; `401` |
-| PUT | `/investments/:id` | `{ name }` (rename only) | `200` | `404`; `401` |
+| PUT | `/investments/:id` | `{ name, initialValue, accountId }` (`type`/`currency` **immutable**; `accountId` `null` clears the link) | `200` | `400`; `404`; `401` |
 | POST | `/investments/:id/archive` | — | `200` | `404`; `401` |
 | POST | `/investments/:id/contributions` | `{ amount(int>0), occurredOn, note? }` | `201` **Contribution** | `400` `amount<=0`/bad date/archived; `404`; `401` |
 | POST | `/investments/:id/valuations` | `{ currentValue(int), recordedOn }` | `201` **Valuation** | `400` bad value/archived; `404`; `401` |
@@ -285,10 +289,24 @@ transaction with `200` instead of duplicating.
 **Contribution object** (`note` **DECRYPTED**): `{ "id", "amount"(cents), "occurredOn", "note": string|null, "createdAt" }`
 **Valuation object:** `{ "id", "currentValue"(cents), "recordedOn", "createdAt" }`
 
-Valuations are append-only (each record inserts a new row; latest by `recordedOn` is the
-current value — history never overwritten). Archived investments reject new
-contributions/valuations (`400`). There is no list endpoint for contributions/valuations;
-they are returned only in their POST response and reflected in investment aggregates.
+Notes:
+- `name` is required; `type` ∈ the taxonomy; `currency` a non-empty ISO-4217 string and
+  **immutable** after create; `initialValue` an integer in cents (**may be negative**, default
+  `0`).
+- `totalInvested = initialValue + totalContributed` (derived, read-only). `currentValue` is
+  the latest valuation by `recordedOn` (or `null`) and is **independent** of `totalInvested` —
+  display both distinctly.
+- `accountId` MUST reference the caller's own, **non-archived**, **`kind=investment`** account
+  (§3.5); any other (different kind, archived, not-owned) → `400`. On `PUT`, `accountId: null`
+  clears the link.
+- **Batch (`POST /investments/batch`)** is **all-or-nothing**: max **100** items; an empty
+  array → `400`; if **any** item is invalid the whole batch fails with `400` and the body
+  includes `index` (zero-based) of the offending item — `{ "error": { code, message },
+  "index": N }`. On success every item is created (`201`); nothing is partially written.
+- Valuations are append-only (each record inserts a new row; latest by `recordedOn` is the
+  current value — history never overwritten). Archived investments reject new
+  contributions/valuations (`400`). There is no list endpoint for contributions/valuations;
+  they are returned only in their POST response and reflected in investment aggregates.
 
 ---
 

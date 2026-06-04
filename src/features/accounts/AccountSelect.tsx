@@ -4,7 +4,7 @@
 
 import { useEffect, useState } from 'react'
 import { ApiError } from '../../api/client'
-import type { Account } from '../../api/types'
+import type { Account, AccountKind } from '../../api/types'
 import { listAccounts } from './api'
 
 interface AccountSelectProps {
@@ -13,9 +13,11 @@ interface AccountSelectProps {
   disabled?: boolean
   /** Hide the field label (e.g. inside a grid row). */
   hideLabel?: boolean
+  /** When set, only accounts of this kind are offered (e.g. 'investment'). */
+  kind?: AccountKind
 }
 
-export function AccountSelect({ value, onChange, disabled, hideLabel }: AccountSelectProps) {
+export function AccountSelect({ value, onChange, disabled, hideLabel, kind }: AccountSelectProps) {
   const [accounts, setAccounts] = useState<Account[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -26,7 +28,7 @@ export function AccountSelect({ value, onChange, disabled, hideLabel }: AccountS
     setError(null)
     listAccounts({ archived: false })
       .then((items) => {
-        if (active) setAccounts(items)
+        if (active) setAccounts(kind ? items.filter((a) => a.kind === kind) : items)
       })
       .catch((err) => {
         if (active && err instanceof ApiError) setError(err.message)
@@ -37,7 +39,7 @@ export function AccountSelect({ value, onChange, disabled, hideLabel }: AccountS
     return () => {
       active = false
     }
-  }, [])
+  }, [kind])
 
   return (
     <label>

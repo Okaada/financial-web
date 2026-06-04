@@ -1,16 +1,4 @@
-# web-investments
-
-## Purpose
-
-Definir a tela de investimentos: listar (com agregados `initialValue`/`totalContributed`/
-`totalInvested`/`currentValue` vindos do backend), criar (taxonomia fixa, `initialValue`,
-vínculo opcional a conta `kind=investment`), editar (`name`/`initialValue`/`accountId`;
-`type`/`currency` imutáveis), arquivar, registrar aportes e marcações de valor (valuations), e
-um dashboard que agrupa `totalInvested` por conta e por tipo (por moeda). O front nunca
-recalcula agregados — re-busca o investimento após aporte/valuation; `totalInvested` (inicial +
-aportes) e `currentValue` (última valuation, independente) são exibidos distintamente.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Listar investimentos com agregados do backend
 
@@ -79,6 +67,41 @@ pertence à taxonomia `renda_fixa | acoes | fii | cripto | outro`, `currency` é
   inválidos)
 - **THEN** a tela exibe a `error.message` junto ao formulário sem perder os dados digitados
 
+### Requirement: Registrar aporte
+
+A tela SHALL permitir registrar um aporte via `POST /api/investments/:id/contributions` com
+`{ amount(inteiro > 0, centavos), occurredOn, note? }`. **Logo após** o sucesso, o app SHALL
+re-buscar o investimento (`GET /api/investments/:id`) e exibir o `totalInvested` atualizado
+(valor inicial + soma dos aportes), deixando claro o impacto do novo aporte. O front NÃO soma
+no cliente.
+
+#### Scenario: Aporte bem-sucedido atualiza o total investido
+
+- **WHEN** o usuário informa `amount` > 0 (centavos), `occurredOn` válido (e `note` opcional)
+  e submete
+- **THEN** o app envia o `POST`, recebe `201`, re-busca `GET /api/investments/:id` e exibe o
+  `totalInvested` atualizado a partir do backend, sinalizando o impacto do aporte
+
+#### Scenario: Valor inválido (400)
+
+- **WHEN** `POST .../contributions` retorna `400` (`amount <= 0`, data inválida)
+- **THEN** a tela exibe a `error.message` sem perder os dados digitados
+
+#### Scenario: Aporte em investimento arquivado (400)
+
+- **WHEN** o investimento está arquivado e o backend responde `400`
+- **THEN** a tela trata como erro do formulário e informa que arquivados não aceitam aportes
+
+## REMOVED Requirements
+
+### Requirement: Renomear investimento
+
+**Reason**: O `PUT /api/investments/:id` deixou de ser apenas rename — agora aceita
+`{ name, initialValue, accountId }`.
+**Migration**: Ver a nova requirement "Editar investimento".
+
+## ADDED Requirements
+
 ### Requirement: Editar investimento
 
 A tela SHALL permitir editar um investimento via `PUT /api/investments/:id` enviando
@@ -126,72 +149,6 @@ usuário ou inexistente → `400`.
 - **THEN** a tela trata como erro do campo de conta, exibe a `error.message` e permite
   reescolher
 
-### Requirement: Arquivar investimento (sem hard delete)
-
-A tela SHALL permitir arquivar um investimento via `POST /api/investments/:id/archive`. NÃO
-há exclusão definitiva.
-
-#### Scenario: Arquivamento bem-sucedido
-
-- **WHEN** o usuário arquiva um investimento e o backend responde `200` com o recurso
-  arquivado
-- **THEN** a tela reflete `archived: true`
-
-#### Scenario: Arquivado não oferece aporte/valuation
-
-- **WHEN** um investimento está arquivado
-- **THEN** a UI não oferece registrar aporte nem valor para ele
-
-### Requirement: Registrar aporte
-
-A tela SHALL permitir registrar um aporte via `POST /api/investments/:id/contributions` com
-`{ amount(inteiro > 0, centavos), occurredOn, note? }`. **Logo após** o sucesso, o app SHALL
-re-buscar o investimento (`GET /api/investments/:id`) e exibir o `totalInvested` atualizado
-(valor inicial + soma dos aportes), deixando claro o impacto do novo aporte. O front NÃO soma
-no cliente.
-
-#### Scenario: Aporte bem-sucedido atualiza o total investido
-
-- **WHEN** o usuário informa `amount` > 0 (centavos), `occurredOn` válido (e `note` opcional)
-  e submete
-- **THEN** o app envia o `POST`, recebe `201`, re-busca `GET /api/investments/:id` e exibe o
-  `totalInvested` atualizado a partir do backend, sinalizando o impacto do aporte
-
-#### Scenario: Valor inválido (400)
-
-- **WHEN** `POST .../contributions` retorna `400` (`amount <= 0`, data inválida)
-- **THEN** a tela exibe a `error.message` sem perder os dados digitados
-
-#### Scenario: Aporte em investimento arquivado (400)
-
-- **WHEN** o investimento está arquivado e o backend responde `400`
-- **THEN** a tela trata como erro do formulário e informa que arquivados não aceitam aportes
-
-### Requirement: Registrar valor atual (valuation)
-
-A tela SHALL permitir registrar o valor atual via `POST /api/investments/:id/valuations` com
-`{ currentValue(centavos), recordedOn }`. As marcações são append-only no backend; o
-`currentValue` autoritativo é o da marcação mais recente. Após sucesso, o app SHALL
-re-buscar o investimento para refletir o `currentValue` agregado.
-
-#### Scenario: Marcação bem-sucedida
-
-- **WHEN** o usuário informa `currentValue` (em centavos) e `recordedOn` válidos e submete
-- **THEN** o app envia o `POST`, recebe `201` com a Valuation e re-busca
-  `GET /api/investments/:id`, atualizando o `currentValue` exibido a partir do backend
-
-#### Scenario: Evolução limitada à sessão (sem endpoint de histórico)
-
-- **WHEN** o usuário registra valuations
-- **THEN** a UI pode listar as valuations criadas **nesta sessão** (a partir das respostas
-  dos `POST`), deixando claro que não há histórico persistente a buscar (não existe endpoint
-  de listagem de valuations no CONTRACT)
-
-#### Scenario: Valor inválido ou investimento arquivado (400)
-
-- **WHEN** `POST .../valuations` retorna `400` (valor inválido ou investimento arquivado)
-- **THEN** a tela exibe a `message` do erro sem travar a tela
-
 ### Requirement: Dashboard por conta e por tipo
 
 A tela SHALL apresentar uma visão que **agrupa** os investimentos da lista retornada por
@@ -221,23 +178,3 @@ por conta, total por tipo, e total **sem conta** (`accountId null`). O nome da c
 
 - **WHEN** existem investimentos em moedas diferentes num mesmo grupo
 - **THEN** cada moeda tem seu próprio total; o app NÃO soma moedas diferentes
-
-### Requirement: Estados de UI explícitos na tela de investimentos
-
-A tela SHALL apresentar estados explícitos para carregando, vazio, erro e sem-sessão.
-
-#### Scenario: Carregando
-
-- **WHEN** a lista está sendo buscada
-- **THEN** a tela mostra um indicador de carregamento
-
-#### Scenario: Erro inesperado de sistema
-
-- **WHEN** uma chamada falha com erro não-`401` (ex.: `500` ou falha de rede)
-- **THEN** a tela mostra um estado de erro com opção de tentar novamente, sem travar o app
-
-#### Scenario: Sem-sessão
-
-- **WHEN** uma chamada retorna `401`
-- **THEN** o tratamento central de `401` redireciona para o login; a tela não renderiza
-  conteúdo protegido

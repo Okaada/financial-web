@@ -17,6 +17,7 @@ export const CATEGORIES_PATH = `${API_PREFIX}/categories`
 export const RECURRING_TEMPLATES_PATH = `${API_PREFIX}/recurring-templates`
 export const RECURRING_OCCURRENCES_PATH = `${API_PREFIX}/recurring-occurrences`
 export const INVESTMENTS_PATH = `${API_PREFIX}/investments`
+export const INVESTMENTS_BATCH_PATH = `${INVESTMENTS_PATH}/batch`
 export const CARDS_PATH = `${API_PREFIX}/cards`
 export const INVOICES_PATH = `${API_PREFIX}/invoices`
 

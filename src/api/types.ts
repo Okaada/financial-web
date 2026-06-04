@@ -157,18 +157,22 @@ export interface OccurrenceRange {
 export type InvestmentType = 'renda_fixa' | 'acoes' | 'fii' | 'cripto' | 'outro'
 
 /**
- * CONTRACT.md §7 — Investment. `totalContributed`/`currentValue` are aggregates computed
- * by the backend (cents); the front never recomputes them. `currentValue` is null until a
- * valuation exists. `name` is DECRYPTED for the owner.
+ * CONTRACT.md §7 — Investment. `totalContributed`/`totalInvested`/`currentValue` are
+ * aggregates computed by the backend (cents); the front never recomputes them.
+ * `totalInvested = initialValue + totalContributed`. `currentValue` is the latest valuation
+ * (or null) and is INDEPENDENT of totalInvested. `name` is DECRYPTED for the owner.
  */
 export interface Investment {
   id: string
-  name: string | null
+  name: string
   type: InvestmentType
   currency: string
   archived: boolean
-  totalContributed: number // cents (aggregate)
+  initialValue: number // cents (integer; may be negative)
+  totalContributed: number // cents (aggregate, sum of contributions)
+  totalInvested: number // cents = initialValue + totalContributed (derived, read-only)
   currentValue: number | null // cents (latest valuation) or null
+  accountId: string | null // linked investment account (kind=investment) or null
   createdAt: string
   updatedAt: string
 }
@@ -191,14 +195,18 @@ export interface Valuation {
 }
 
 export interface CreateInvestmentInput {
+  name: string
   type: InvestmentType
   currency: string
-  name?: string
+  initialValue?: number // cents (integer; may be negative; default 0)
+  accountId?: string
 }
 
-/** PUT /investments/:id — rename only. */
-export interface RenameInvestmentInput {
+/** PUT /investments/:id — name/initialValue/accountId; type/currency immutable (not sent). */
+export interface UpdateInvestmentInput {
   name: string
+  initialValue: number // cents
+  accountId: string | null // null clears the link
 }
 
 export interface CreateContributionInput {
@@ -215,6 +223,7 @@ export interface CreateValuationInput {
 /** Query filters for GET /investments; empty values are omitted. */
 export interface InvestmentFilters {
   archived?: boolean
+  accountId?: string
 }
 
 /** CONTRACT.md §8 — Credit card. `name` DECRYPTED. `closingDay` is immutable after create. */

@@ -1,20 +1,16 @@
-// One investment row that expands inline to reveal actions (web-investments spec,
-// design D3): rename, archive, register a contribution and a valuation. After a
-// contribution/valuation the investment is re-fetched so aggregates come from the backend
-// (design D1 — the front never sums). Valuations recorded this session are listed locally
-// (design D2 — there is no history endpoint).
+// One investment row that expands inline to reveal actions (web-investments): edit
+// (name/initialValue/account; type/currency immutable), archive, register a contribution and
+// a valuation. Figures are shown distinctly: initial, total invested (= initial + aportes),
+// and current value (latest valuation, independent). After a contribution/valuation the
+// investment is re-fetched so aggregates come from the backend (the front never sums); the
+// contribution surfaces the updated totalInvested as feedback.
 
 import { useState, type FormEvent } from 'react'
 import { ApiError, UnauthenticatedError } from '../../api/client'
 import type { Investment, Valuation } from '../../api/types'
 import { formatCents, parseToCents } from '../../lib/money'
-import {
-  addContribution,
-  addValuation,
-  archiveInvestment,
-  getInvestment,
-  renameInvestment,
-} from './api'
+import { addContribution, addValuation, archiveInvestment, getInvestment, updateInvestment } from './api'
+import { InvestmentForm } from './InvestmentForm'
 import { investmentTypeLabel } from './taxonomy'
 
 interface InvestmentCardProps {
@@ -30,11 +26,9 @@ function todayISO(): string {
 
 export function InvestmentCard({ investment, onChange }: InvestmentCardProps) {
   const [expanded, setExpanded] = useState(false)
+  const [editing, setEditing] = useState(false)
   const [rowError, setRowError] = useState<string | null>(null)
-
-  // Rename.
-  const [renaming, setRenaming] = useState(false)
-  const [nameValue, setNameValue] = useState(investment.name ?? '')
+  const [impact, setImpact] = useState<string | null>(null)
 
   // Contribution form.
   const [contribAmount, setContribAmount] = useState('')
@@ -49,28 +43,11 @@ export function InvestmentCard({ investment, onChange }: InvestmentCardProps) {
   const [valBusy, setValBusy] = useState(false)
   const [valError, setValError] = useState<string | null>(null)
 
-  // Valuations registered this session (no history endpoint — design D2).
+  // Valuations registered this session (no history endpoint).
   const [sessionValuations, setSessionValuations] = useState<Valuation[]>([])
 
-  async function handleRename() {
-    setRowError(null)
-    if (nameValue.trim() === '') {
-      setRowError('Informe um nome.')
-      return
-    }
-    try {
-      const updated = await renameInvestment(investment.id, { name: nameValue.trim() })
-      onChange(updated)
-      setRenaming(false)
-    } catch (err) {
-      if (err instanceof UnauthenticatedError) return
-      if (err instanceof ApiError && err.status === 404) setRowError('Investimento não encontrado.')
-      else setRowError(err instanceof ApiError ? err.message : 'Falha ao renomear.')
-    }
-  }
-
   async function handleArchive() {
-    if (!window.confirm(`Arquivar "${investment.name ?? 'investimento'}"?`)) return
+    if (!window.confirm(`Arquivar "${investment.name}"?`)) return
     setRowError(null)
     try {
       const updated = await archiveInvestment(investment.id)
@@ -85,6 +62,7 @@ export function InvestmentCard({ investment, onChange }: InvestmentCardProps) {
   async function handleContribution(event: FormEvent) {
     event.preventDefault()
     setContribError(null)
+    setImpact(null)
     const amount = parseToCents(contribAmount)
     if (amount === null || amount <= 0) {
       setContribError('Valor do aporte deve ser maior que zero.')
@@ -101,9 +79,10 @@ export function InvestmentCard({ investment, onChange }: InvestmentCardProps) {
         occurredOn: contribDate,
         ...(contribNote.trim() !== '' ? { note: contribNote.trim() } : {}),
       })
-      // Re-fetch to get the authoritative totalContributed (the front never sums).
+      // Re-fetch to get the authoritative totalInvested (the front never sums).
       const refreshed = await getInvestment(investment.id)
       onChange(refreshed)
+      setImpact(`Total investido agora: ${formatCents(refreshed.totalInvested, refreshed.currency)}`)
       setContribAmount('')
       setContribNote('')
     } catch (err) {
@@ -145,14 +124,18 @@ export function InvestmentCard({ investment, onChange }: InvestmentCardProps) {
 
   return (
     <li className="category">
-      <span className="category-name">{investment.name ?? '(sem nome)'}</span>
+      <span className="category-name">{investment.name}</span>
       <span className="category-type">{investmentTypeLabel(investment.type)}</span>
       {investment.archived && <span className="badge">arquivado</span>}
 
       <span className="invest-figures">
         <span className="invest-figure">
-          <small>Aportado</small>
-          {formatCents(investment.totalContributed, investment.currency)}
+          <small>Inicial</small>
+          {formatCents(investment.initialValue, investment.currency)}
+        </span>
+        <span className="invest-figure">
+          <small>Investido</small>
+          {formatCents(investment.totalInvested, investment.currency)}
         </span>
         <span className="invest-figure">
           <small>Valor atual</small>
@@ -175,42 +158,37 @@ export function InvestmentCard({ investment, onChange }: InvestmentCardProps) {
               {rowError}
             </p>
           )}
+          {impact && (
+            <p className="state state-empty" role="status">
+              {impact}
+            </p>
+          )}
 
-          <div className="invest-detail-actions">
-            {renaming ? (
-              <>
-                <input
-                  type="text"
-                  value={nameValue}
-                  onChange={(e) => setNameValue(e.target.value)}
-                  aria-label="Novo nome"
-                />
-                <button type="button" className="link" onClick={() => void handleRename()}>
-                  Salvar
+          {editing ? (
+            <InvestmentForm
+              mode="edit"
+              initial={investment}
+              onUpdate={async (input) => {
+                const updated = await updateInvestment(investment.id, input)
+                onChange(updated)
+                setEditing(false)
+              }}
+              onCancel={() => setEditing(false)}
+            />
+          ) : (
+            <div className="invest-detail-actions">
+              <button type="button" className="link" onClick={() => setEditing(true)}>
+                Editar
+              </button>
+              {!investment.archived && (
+                <button type="button" className="btn btn-danger btn-sm" onClick={() => void handleArchive()}>
+                  Arquivar
                 </button>
-                <button type="button" className="link" onClick={() => setRenaming(false)}>
-                  Cancelar
-                </button>
-              </>
-            ) : (
-              <>
-                <button type="button" className="link" onClick={() => setRenaming(true)}>
-                  Renomear
-                </button>
-                {!investment.archived && (
-                  <button
-                    type="button"
-                    className="btn btn-danger btn-sm"
-                    onClick={() => void handleArchive()}
-                  >
-                    Arquivar
-                  </button>
-                )}
-              </>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
-          {!investment.archived && (
+          {!investment.archived && !editing && (
             <>
               <form className="invest-form" onSubmit={handleContribution}>
                 <h3>Novo aporte</h3>
