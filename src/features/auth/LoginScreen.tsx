@@ -38,6 +38,9 @@ export function LoginScreen() {
           <GoogleLogo />
           <span>Entrar com Google</span>
         </button>
+        <p className="login-note">
+          Projeto atualmente de uso pessoal — o acesso é por convite.
+        </p>
       </div>
     </main>
   )

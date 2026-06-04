@@ -1182,6 +1182,12 @@ h3 {
   border-color: var(--text-muted);
 }
 
+.login-note {
+  margin: var(--space-2) 0 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
 /* ------------------------------------------------------------------- Effects */
 /* Hover elevation on card-like surfaces. transform + box-shadow only, so neighbours
    never reflow. Reduced-motion zeroes the transitions globally. */
