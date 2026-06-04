@@ -16,7 +16,7 @@
 // The eslint `no-restricted-globals` rule forbids fetch elsewhere; this file is the
 // single exception.
 
-import { markAuthenticated, markUnauthenticated } from './authState'
+import { markAuthenticated, markSignupDenied, markUnauthenticated } from './authState'
 import { API_PREFIX } from './paths'
 import type { ErrorEnvelope } from './types'
 
@@ -24,12 +24,15 @@ import type { ErrorEnvelope } from './types'
 export class ApiError extends Error {
   readonly status: number
   readonly code: string
+  /** Zero-based index of the offending item in a batch 400 (CONTRACT §4); undefined otherwise. */
+  readonly index?: number
 
-  constructor(status: number, code: string, message: string) {
+  constructor(status: number, code: string, message: string, index?: number) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.code = code
+    this.index = index
   }
 
   /** True when the resource was not found / belongs to another tenant (404). */
@@ -75,10 +78,12 @@ function buildUrl(path: string, query?: RequestOptions['query']): string {
 async function toApiError(response: Response): Promise<ApiError> {
   const fallbackCode = response.status === 404 ? 'not_found' : 'unexpected_error'
   try {
-    const data = (await response.json()) as Partial<ErrorEnvelope>
+    const data = (await response.json()) as Partial<ErrorEnvelope> & { index?: unknown }
     const code = data.error?.code ?? fallbackCode
     const message = data.error?.message ?? response.statusText ?? 'Request failed'
-    return new ApiError(response.status, code, message)
+    // Batch 400 carries a sibling `index` (zero-based) pointing at the bad item.
+    const index = typeof data.index === 'number' ? data.index : undefined
+    return new ApiError(response.status, code, message, index)
   } catch {
     // No body, or a body that is not the JSON error envelope (e.g. 500 with no body).
     return new ApiError(response.status, fallbackCode, response.statusText || 'Request failed')
@@ -107,7 +112,13 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   if (!response.ok) {
     // 404 and every other error become a structured ApiError (404 = not_found, not a
     // system failure and not a login trigger).
-    throw await toApiError(response)
+    const error = await toApiError(response)
+    // Signup is gated by an allowlist: a 403 `signup_denied` means the identity logged in
+    // but is not allowed to onboard — a distinct app state (the "invite only" screen).
+    if (error.status === 403 && error.code === 'signup_denied') {
+      markSignupDenied()
+    }
+    throw error
   }
 
   // A successful protected response confirms we have a session.

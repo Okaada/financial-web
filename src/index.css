@@ -1252,3 +1252,80 @@ h3 {
     animation: none !important;
   }
 }
+
+/* ----------------------------------------------------------------- Batch grid */
+.batch-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.batch-grid {
+  list-style: none;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.batch-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.batch-row-error {
+  border-left-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.batch-cell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  flex: 1 1 130px;
+  min-width: 0;
+}
+
+.batch-cell-sm {
+  flex: 0 0 72px;
+}
+
+.batch-cell select,
+.batch-cell input {
+  min-height: 38px;
+}
+
+.batch-remove {
+  flex: 0 0 auto;
+  align-self: center;
+}
+
+.batch-paste {
+  margin: var(--space-3) 0;
+}
+
+.batch-paste textarea {
+  width: 100%;
+  margin: var(--space-2) 0;
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  resize: vertical;
+}
+
+.account-balance .dash-row-amount {
+  margin: 0;
+  font-size: var(--text-lg);
+}

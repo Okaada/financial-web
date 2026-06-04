@@ -111,6 +111,48 @@ Structured health; DB connectivity probe.
 
 ---
 
+## 3.5 Bank accounts  `(/accounts)` — protected
+
+> Distinct from §9 (`/account`, the **user** account / LGPD). These are the user's **bank /
+> money accounts** whose balances are **derived by the backend**.
+
+**Resource object:**
+```json
+{
+  "id": "uuid",
+  "name": "string",
+  "kind": "checking" | "cash" | "wallet" | "investment",
+  "currency": "BRL",
+  "openingBalance": 0,        // cents (integer; may be negative)
+  "currentBalance": 0,        // cents (integer); DERIVED by the backend (read-only)
+  "archived": false,
+  "createdAt": "iso-utc",
+  "updatedAt": "iso-utc"
+}
+```
+
+`currentBalance = openingBalance + Σ(income) − Σ(expense)` over the account's linked
+transactions. It is **computed by the backend** and read-only — clients display it, never
+recompute it.
+
+| Method | Path | Request body / query | Success | Errors |
+|---|---|---|---|---|
+| GET | `/accounts` | query: `archived` (`true`/`false`) | `200` `{ "items": [resource] }` | `401` |
+| GET | `/accounts/:id` | — | `200` resource | `404`; `401` |
+| POST | `/accounts` | `{ name, kind, currency, openingBalance?(int cents, default 0) }` | `201` resource | `400` invalid `kind` / empty `currency`; `401` |
+| PUT | `/accounts/:id` | `{ name, kind, openingBalance }` (`currency` is **immutable** — not accepted) | `200` resource | `400`; `404`; `401` |
+| POST | `/accounts/:id/archive` | — | `200` archived resource (soft-delete) | `404`; `401` |
+
+Notes:
+- `kind` MUST be one of `checking | cash | wallet | investment`. `currency` MUST be a
+  non-empty string and is **immutable** after creation.
+- `openingBalance` is an integer in cents and **may be negative** (default `0`).
+- Archiving is a **soft-delete**: an archived account stays readable and keeps its computed
+  balance, but does **not** accept new linked transactions.
+- A `:id` belonging to another user responds `404` (existence is never revealed).
+
+---
+
 ## 4. Transactions  `(/transactions)` — protected
 
 **Resource object:**
@@ -124,6 +166,7 @@ Structured health; DB connectivity probe.
   "category": "string" | null,       // legacy free-text fallback, read-only (new writes leave null)
   "recurringTemplateId": "uuid" | null,
   "cardId": "uuid" | null,           // null = ad-hoc, outside any invoice
+  "accountId": "uuid" | null,        // null = not linked to any bank account (§3.5)
   "occurredOn": "YYYY-MM-DD",
   "description": "string" | null,    // DECRYPTED for the owner
   "externalRef": "string" | null,    // DECRYPTED for the owner
@@ -134,18 +177,29 @@ Structured health; DB connectivity probe.
 
 | Method | Path | Request body / query | Success | Errors |
 |---|---|---|---|---|
-| POST | `/transactions` | `{ type, amount(int), currency, occurredOn, categoryId?, cardId?, description?, externalRef? }` | `201` resource | `400` invalid `type`/`amount`/`currency`/`occurredOn`, or bad `categoryId`/`cardId`; `401` |
-| GET | `/transactions` | query: `type`, `categoryId`, `cardId`, `from`, `to` | `200` `{ "items": [resource] }` | `401` |
+| POST | `/transactions` | `{ type, amount(int), currency, occurredOn, categoryId?, cardId?, accountId?, description?, externalRef? }` | `201` resource | `400` invalid `type`/`amount`/`currency`/`occurredOn`, or bad `categoryId`/`cardId`/`accountId`; `401` |
+| POST | `/transactions/batch` | **array** of items (each the same shape as the POST body) | `201` `{ "items": [resource] }` | `400` (see batch rules — body adds `index`); `401` |
+| GET | `/transactions` | query: `type`, `categoryId`, `cardId`, `accountId`, `from`, `to` | `200` `{ "items": [resource] }` | `401` |
 | GET | `/transactions/:id` | — | `200` resource | `404`; `401` |
-| PUT | `/transactions/:id` | same as POST (full replace; `categoryId`/`cardId` may be set or `null`) | `200` resource | `400` bad category/card; `404`; `401` |
+| PUT | `/transactions/:id` | same as POST (full replace; `categoryId`/`cardId`/`accountId` may be set or `null`) | `200` resource | `400` bad category/card/account; `404`; `401` |
 | DELETE | `/transactions/:id` | — | `204` | `404`; `401` |
 
 Notes:
-- `type` MUST be `income` or `expense`. `amount` MUST be an integer. `currency`/`occurredOn`
-  MUST be non-empty strings (date format expected but only non-empty is enforced).
+- `type` MUST be `income` or `expense`. `amount` MUST be an integer (cents). `currency`/
+  `occurredOn` MUST be non-empty strings (date format expected but only non-empty is enforced).
+- Body-referenced ids return `400` (not `404`) when invalid/archived/not-owned:
+  `categoryId` (and its `type` MUST be compatible with the transaction `type`), `cardId`, and
+  `accountId`.
+- Linking `accountId` attaches the transaction to a bank account (§3.5); the account's
+  `currentBalance` is **recomputed by the backend** from its linked transactions. An archived
+  account does not accept new linked transactions (`400`).
 - Linking `cardId` attaches the transaction to the card's invoice for the period containing
   `occurredOn`; if that invoice was `closed`/`paid` it is **automatically reopened**.
   Editing/deleting a transaction in a closed/paid invoice's period also reopens it.
+- **Batch (`POST /transactions/batch`)** is **all-or-nothing**: max **100** items; an empty
+  array → `400`; if **any** item is invalid the whole batch fails with `400` and the body
+  includes `index` (zero-based) of the offending item — `{ "error": { code, message },
+  "index": N }`. On success nothing is partially written: every item is created (`201`).
 
 ---
 

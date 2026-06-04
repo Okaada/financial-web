@@ -14,6 +14,7 @@ import type {
   UpdateTransactionInput,
 } from '../../api/types'
 import { centsToInput, parseToCents } from '../../lib/money'
+import { AccountSelect } from '../accounts/AccountSelect'
 import { CardSelect } from '../cards/CardSelect'
 import { createTransaction, updateTransaction } from './api'
 import { CategorySelect } from './CategorySelect'
@@ -36,18 +37,21 @@ export function TransactionForm({ initial, onSaved, onCancel }: TransactionFormP
   const [occurredOn, setOccurredOn] = useState(initial?.occurredOn ?? '')
   const [categoryId, setCategoryId] = useState(initial?.categoryId ?? '')
   const [cardId, setCardId] = useState(initial?.cardId ?? '')
+  const [accountId, setAccountId] = useState(initial?.accountId ?? '')
   const [description, setDescription] = useState(initial?.description ?? '')
 
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [categoryError, setCategoryError] = useState<string | null>(null)
   const [cardError, setCardError] = useState<string | null>(null)
+  const [accountError, setAccountError] = useState<string | null>(null)
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault()
     setFormError(null)
     setCategoryError(null)
     setCardError(null)
+    setAccountError(null)
 
     const amount = parseToCents(amountInput)
     if (amount === null) {
@@ -72,6 +76,7 @@ export function TransactionForm({ initial, onSaved, onCancel }: TransactionFormP
           occurredOn,
           categoryId: categoryId === '' ? null : categoryId,
           cardId: cardId === '' ? null : cardId,
+          accountId: accountId === '' ? null : accountId,
         }
         if (description.trim() !== '') body.description = description.trim()
         saved = await updateTransaction(initial.id, body)
@@ -79,6 +84,7 @@ export function TransactionForm({ initial, onSaved, onCancel }: TransactionFormP
         const body: CreateTransactionInput = { type, amount, currency, occurredOn }
         if (categoryId !== '') body.categoryId = categoryId
         if (cardId !== '') body.cardId = cardId
+        if (accountId !== '') body.accountId = accountId
         if (description.trim() !== '') body.description = description.trim()
         saved = await createTransaction(body)
       }
@@ -90,6 +96,7 @@ export function TransactionForm({ initial, onSaved, onCancel }: TransactionFormP
         setOccurredOn('')
         setCategoryId('')
         setCardId('')
+        setAccountId('')
         setDescription('')
       }
     } catch (err) {
@@ -100,8 +107,10 @@ export function TransactionForm({ initial, onSaved, onCancel }: TransactionFormP
         // confirmed, so we just ask the user to pick another.
         if (/cart|card/i.test(err.message) || /card/i.test(err.code)) {
           setCardError(err.message)
-        } else if (/categor/i.test(err.message) || /category/i.test(err.code)) {
+        } else if (/categor|category/i.test(err.message) || /categor/i.test(err.code)) {
           setCategoryError(err.message)
+        } else if (/\bconta\b|account/i.test(err.message) || /account/i.test(err.code)) {
+          setAccountError(err.message)
         } else {
           setFormError(err.message)
         }
@@ -167,8 +176,13 @@ export function TransactionForm({ initial, onSaved, onCancel }: TransactionFormP
       </label>
 
       <div className="field">
-        <CategorySelect value={categoryId} onChange={setCategoryId} disabled={submitting} />
+        <CategorySelect value={categoryId} onChange={setCategoryId} type={type} disabled={submitting} />
         {categoryError && <span className="field-error">{categoryError}</span>}
+      </div>
+
+      <div className="field">
+        <AccountSelect value={accountId} onChange={setAccountId} disabled={submitting} />
+        {accountError && <span className="field-error">{accountError}</span>}
       </div>
 
       <div className="field">

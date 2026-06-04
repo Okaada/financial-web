@@ -14,6 +14,7 @@ export interface Transaction {
   category: string | null // legacy free-text fallback, read-only
   recurringTemplateId: string | null
   cardId: string | null
+  accountId: string | null // null = not linked to any bank account (§3.5)
   occurredOn: string // YYYY-MM-DD
   description: string | null // DECRYPTED for the owner
   externalRef: string | null // DECRYPTED for the owner
@@ -29,7 +30,9 @@ export interface CreateTransactionInput {
   occurredOn: string // YYYY-MM-DD
   categoryId?: string
   cardId?: string
+  accountId?: string
   description?: string
+  externalRef?: string
 }
 
 /**
@@ -44,6 +47,7 @@ export interface UpdateTransactionInput {
   occurredOn: string // YYYY-MM-DD
   categoryId: string | null
   cardId: string | null
+  accountId: string | null
   description?: string
 }
 
@@ -52,6 +56,7 @@ export interface TransactionFilters {
   type?: TransactionType
   categoryId?: string
   cardId?: string
+  accountId?: string
   from?: string // YYYY-MM-DD
   to?: string // YYYY-MM-DD
 }
@@ -307,6 +312,46 @@ export interface AuditEvent {
   eventType: string
   metadata: Record<string, unknown>
   createdAt: string // iso-utc
+}
+
+/** CONTRACT.md §3.5 — fixed bank-account taxonomy. */
+export type AccountKind = 'checking' | 'cash' | 'wallet' | 'investment'
+
+/**
+ * CONTRACT.md §3.5 — Bank account (distinct from §9 user account). `currentBalance` is
+ * DERIVED by the backend (cents) — the front never recomputes it. `openingBalance` is cents
+ * and may be negative. `currency` is immutable after creation.
+ */
+export interface Account {
+  id: string
+  name: string
+  kind: AccountKind
+  currency: string
+  openingBalance: number // cents (integer; may be negative)
+  currentBalance: number // cents (integer); backend-derived, read-only
+  archived: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+/** Body for POST /accounts. `openingBalance` optional (cents, default 0, may be negative). */
+export interface CreateAccountInput {
+  name: string
+  kind: AccountKind
+  currency: string
+  openingBalance?: number
+}
+
+/** Body for PUT /accounts/:id — `currency` is immutable and NOT sent. */
+export interface UpdateAccountInput {
+  name: string
+  kind: AccountKind
+  openingBalance: number
+}
+
+/** Query filters for GET /accounts; empty values are omitted. */
+export interface AccountFilters {
+  archived?: boolean
 }
 
 /** Standard list envelope used by every collection endpoint. */

@@ -8,10 +8,18 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { ApiError, UnauthenticatedError } from '../../api/client'
-import type { Category, Transaction, TransactionFilters, TransactionType } from '../../api/types'
+import type {
+  Account,
+  Category,
+  Transaction,
+  TransactionFilters,
+  TransactionType,
+} from '../../api/types'
 import { formatCents } from '../../lib/money'
+import { getAccount, listAccounts } from '../accounts/api'
 import { listCategories } from '../categories/api'
 import { deleteTransaction, listTransactions } from './api'
+import { BatchEntryScreen } from './BatchEntryScreen'
 import { TransactionForm } from './TransactionForm'
 
 type Status = 'loading' | 'ready' | 'error'
@@ -19,17 +27,19 @@ type Status = 'loading' | 'ready' | 'error'
 interface FilterState {
   type: '' | TransactionType
   categoryId: string
+  accountId: string
   from: string
   to: string
 }
 
-const EMPTY_FILTERS: FilterState = { type: '', categoryId: '', from: '', to: '' }
+const EMPTY_FILTERS: FilterState = { type: '', categoryId: '', accountId: '', from: '', to: '' }
 
 /** Map the form's filter state to API filters, omitting empty values. */
 function toApiFilters(f: FilterState): TransactionFilters {
   return {
     type: f.type || undefined,
     categoryId: f.categoryId || undefined,
+    accountId: f.accountId || undefined,
     from: f.from || undefined,
     to: f.to || undefined,
   }
@@ -47,6 +57,12 @@ export function TransactionsScreen() {
   const [applied, setApplied] = useState(false)
   // Categories for the filter dropdown (all non-archived types).
   const [filterCategories, setFilterCategories] = useState<Category[]>([])
+  // Accounts for the filter dropdown (non-archived).
+  const [filterAccounts, setFilterAccounts] = useState<Account[]>([])
+  // The account whose balance is shown when filtering by accountId (per-account view).
+  const [accountView, setAccountView] = useState<Account | null>(null)
+
+  const [showBatch, setShowBatch] = useState(false)
 
   const load = useCallback(async (f: FilterState) => {
     setStatus('loading')
@@ -54,6 +70,16 @@ export function TransactionsScreen() {
     try {
       const items = await listTransactions(toApiFilters(f))
       setTransactions(items)
+      // Per-account view: show the account's backend-derived balance alongside its list.
+      if (f.accountId) {
+        const account = await getAccount(f.accountId).catch((e) => {
+          if (e instanceof ApiError && e.isNotFound) return null
+          throw e
+        })
+        setAccountView(account)
+      } else {
+        setAccountView(null)
+      }
       setStatus('ready')
     } catch (err) {
       // 401 -> the client already redirected to login; stay in loading (no-session).
@@ -63,11 +89,25 @@ export function TransactionsScreen() {
     }
   }, [])
 
+  // Re-fetch affected accounts after a mutation and reflect the new (backend-derived) balance.
+  const refreshAccounts = useCallback(async (ids: (string | null)[]) => {
+    const unique = [...new Set(ids.filter((id): id is string => !!id))]
+    for (const id of unique) {
+      try {
+        const account = await getAccount(id)
+        setAccountView((prev) => (prev && prev.id === id ? account : prev))
+        setNotice(`Saldo de ${account.name}: ${formatCents(account.currentBalance, account.currency)}`)
+      } catch {
+        /* 404/transient — ignore; the balance just won't refresh. */
+      }
+    }
+  }, [])
+
   useEffect(() => {
     void load(EMPTY_FILTERS)
   }, [load])
 
-  // Load categories once for the filter selector (best-effort; failure just hides it).
+  // Load categories + accounts once for the filter selectors (best-effort; failure hides them).
   useEffect(() => {
     let active = true
     listCategories({ archived: false })
@@ -77,6 +117,13 @@ export function TransactionsScreen() {
       .catch(() => {
         /* 401 handled centrally; other errors leave the dropdown empty. */
       })
+    listAccounts({ archived: false })
+      .then((items) => {
+        if (active) setFilterAccounts(items)
+      })
+      .catch(() => {
+        /* best-effort */
+      })
     return () => {
       active = false
     }
@@ -84,11 +131,14 @@ export function TransactionsScreen() {
 
   function handleSaved(saved: Transaction) {
     setNotice(null)
+    // The accounts affected by this save: the new one and (on edit) the previous one.
+    const affected = [saved.accountId, editing?.accountId ?? null]
     setTransactions((prev) => {
       const exists = prev.some((tx) => tx.id === saved.id)
       return exists ? prev.map((tx) => (tx.id === saved.id ? saved : tx)) : [saved, ...prev]
     })
     setEditing(null)
+    void refreshAccounts(affected)
   }
 
   async function handleDelete(tx: Transaction) {
@@ -98,6 +148,7 @@ export function TransactionsScreen() {
       await deleteTransaction(tx.id)
       setTransactions((prev) => prev.filter((t) => t.id !== tx.id))
       if (editing?.id === tx.id) setEditing(null)
+      void refreshAccounts([tx.accountId])
     } catch (err) {
       if (err instanceof UnauthenticatedError) return
       if (err instanceof ApiError && err.status === 404) {
@@ -121,9 +172,23 @@ export function TransactionsScreen() {
     void load(EMPTY_FILTERS)
   }
 
+  if (showBatch) {
+    return (
+      <BatchEntryScreen
+        onBack={() => setShowBatch(false)}
+        onCreated={() => void load(filters)}
+      />
+    )
+  }
+
   return (
     <main className="screen">
-      <h1>Transações</h1>
+      <div className="batch-head">
+        <h1>Transações</h1>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowBatch(true)}>
+          Lançar em lote
+        </button>
+      </div>
 
       {editing ? (
         <TransactionForm
@@ -170,6 +235,21 @@ export function TransactionsScreen() {
         </label>
 
         <label>
+          Conta
+          <select
+            value={filters.accountId}
+            onChange={(e) => setFilters((f) => ({ ...f, accountId: e.target.value }))}
+          >
+            <option value="">Todas</option>
+            {filterAccounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
           De
           <input
             type="date"
@@ -194,6 +274,15 @@ export function TransactionsScreen() {
           </button>
         </div>
       </form>
+
+      {accountView && (
+        <section className="card-section account-balance" aria-live="polite">
+          <h3>{accountView.name}</h3>
+          <p className="dash-row-amount">
+            Saldo atual: {formatCents(accountView.currentBalance, accountView.currency)}
+          </p>
+        </section>
+      )}
 
       {notice && (
         <p className="notice" role="status">

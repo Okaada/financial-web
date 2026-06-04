@@ -3,6 +3,7 @@
 
 import {
   AccountIcon,
+  AccountsIcon,
   CardsIcon,
   CategoriesIcon,
   DashboardIcon,
@@ -14,6 +15,7 @@ import {
 
 export type View =
   | 'dashboard'
+  | 'accounts'
   | 'transactions'
   | 'categories'
   | 'recurring'
@@ -30,6 +32,7 @@ export interface NavItem {
 
 export const VIEWS: NavItem[] = [
   { id: 'dashboard', label: 'Visão geral', Icon: DashboardIcon },
+  { id: 'accounts', label: 'Contas', Icon: AccountsIcon },
   { id: 'transactions', label: 'Transações', Icon: TransactionsIcon },
   { id: 'categories', label: 'Categorias', Icon: CategoriesIcon },
   { id: 'recurring', label: 'Recorrentes', Icon: RecurringIcon },

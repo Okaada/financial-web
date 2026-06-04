@@ -8,8 +8,10 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { getAuthStatus, markUnauthenticated, subscribeAuth } from './api/authState'
 import { probeSession } from './api/session'
+import { InviteOnlyScreen } from './features/auth/InviteOnlyScreen'
 import { LoginScreen } from './features/auth/LoginScreen'
 import { AccountScreen } from './features/account/AccountScreen'
+import { AccountsScreen } from './features/accounts/AccountsScreen'
 import { CardsScreen } from './features/cards/CardsScreen'
 import { CategoriesScreen } from './features/categories/CategoriesScreen'
 import { DashboardScreen } from './features/dashboard/DashboardScreen'
@@ -24,6 +26,7 @@ import type { View } from './features/shell/nav'
 // Screens with no props are looked up here; the dashboard takes an onNavigate prop and is
 // rendered explicitly below.
 const SCREENS: Record<Exclude<View, 'dashboard'>, () => React.JSX.Element> = {
+  accounts: AccountsScreen,
   transactions: TransactionsScreen,
   categories: CategoriesScreen,
   recurring: RecurringTemplatesScreen,
@@ -58,6 +61,10 @@ export default function App() {
 
   if (authStatus === 'unauthenticated') {
     return <LoginScreen />
+  }
+
+  if (authStatus === 'signup_denied') {
+    return <InviteOnlyScreen />
   }
 
   return <AppShell />

@@ -96,6 +96,17 @@ export function AccountIcon() {
   )
 }
 
+export function AccountsIcon() {
+  return (
+    <svg {...ICON_PROPS}>
+      <rect x="3" y="6" width="18" height="13" rx="2" />
+      <path d="M3 10h18" />
+      <path d="M7 3.5h10" />
+      <circle cx="16.5" cy="14.5" r="1.3" />
+    </svg>
+  )
+}
+
 export function MenuIcon() {
   return (
     <svg {...ICON_PROPS} width={24} height={24}>

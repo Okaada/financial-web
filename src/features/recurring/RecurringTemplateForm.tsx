@@ -192,7 +192,7 @@ export function RecurringTemplateForm({ initial, onSaved, onCancel }: RecurringT
       </label>
 
       <div className="field">
-        <CategorySelect value={categoryId} onChange={setCategoryId} disabled={submitting} />
+        <CategorySelect value={categoryId} onChange={setCategoryId} type={type} disabled={submitting} />
         {categoryError && <span className="field-error">{categoryError}</span>}
       </div>
 

@@ -6,7 +6,7 @@
 // This lives in a non-React module because client.ts (also non-React) must push changes to
 // the UI. It is plain app state — NOT the session cookie; the JS never touches fa_session.
 
-export type AuthStatus = 'unknown' | 'authenticated' | 'unauthenticated'
+export type AuthStatus = 'unknown' | 'authenticated' | 'unauthenticated' | 'signup_denied'
 
 let status: AuthStatus = 'unknown'
 const listeners = new Set<() => void>()
@@ -32,4 +32,9 @@ export function markAuthenticated(): void {
 
 export function markUnauthenticated(): void {
   setStatus('unauthenticated')
+}
+
+/** Login succeeded at Google, but the identity is not allowed to onboard (403 signup_denied). */
+export function markSignupDenied(): void {
+  setStatus('signup_denied')
 }

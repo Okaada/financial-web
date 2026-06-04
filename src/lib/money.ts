@@ -45,8 +45,23 @@ export function parseToCents(input: string): number | null {
 
 /**
  * Render integer cents as an editable input string for the form (pt-BR decimal comma),
- * e.g. centsToInput(1000) -> "10,00". Round-trips through parseToCents.
+ * e.g. centsToInput(1000) -> "10,00". Round-trips through parseToCents. Handles negatives
+ * (e.g. centsToInput(-1000) -> "-10,00").
  */
 export function centsToInput(amount: number): string {
   return (amount / 100).toFixed(2).replace('.', ',')
+}
+
+/**
+ * Parse a user-entered monetary string into integer cents, allowing a leading sign — used
+ * for values that may be negative (e.g. an account's opening balance). An empty string maps
+ * to 0. Returns null when the input is not a valid signed amount.
+ */
+export function parseToCentsSigned(input: string): number | null {
+  const trimmed = input.trim()
+  if (trimmed === '') return 0
+  const negative = trimmed.startsWith('-')
+  const magnitude = parseToCents(negative ? trimmed.slice(1) : trimmed)
+  if (magnitude === null) return null
+  return negative ? -magnitude : magnitude
 }

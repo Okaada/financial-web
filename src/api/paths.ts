@@ -11,6 +11,7 @@ export const API_PREFIX = '/api'
 export const LOGIN_PATH = `${API_PREFIX}/auth/login`
 export const LOGOUT_PATH = `${API_PREFIX}/auth/logout`
 export const TRANSACTIONS_PATH = `${API_PREFIX}/transactions`
+export const TRANSACTIONS_BATCH_PATH = `${TRANSACTIONS_PATH}/batch`
 export const CATEGORIES_PATH = `${API_PREFIX}/categories`
 
 export const RECURRING_TEMPLATES_PATH = `${API_PREFIX}/recurring-templates`
@@ -18,6 +19,9 @@ export const RECURRING_OCCURRENCES_PATH = `${API_PREFIX}/recurring-occurrences`
 export const INVESTMENTS_PATH = `${API_PREFIX}/investments`
 export const CARDS_PATH = `${API_PREFIX}/cards`
 export const INVOICES_PATH = `${API_PREFIX}/invoices`
+
+// Bank accounts (CONTRACT.md §3.5) — distinct from §9 user account/LGPD.
+export const ACCOUNTS_PATH = `${API_PREFIX}/accounts`
 
 // Account & LGPD (CONTRACT.md §9). DELETE /account is self-only — there is no by-id form.
 export const ACCOUNT_PATH = `${API_PREFIX}/account`
@@ -43,3 +47,5 @@ export const cardInvoicesPath = (id: string) => `${cardPath(id)}/invoices`
 export const invoicePath = (id: string) => `${INVOICES_PATH}/${encodeURIComponent(id)}`
 export const invoiceClosePath = (id: string) => `${invoicePath(id)}/close`
 export const invoicePayPath = (id: string) => `${invoicePath(id)}/pay`
+export const accountPath = (id: string) => `${ACCOUNTS_PATH}/${encodeURIComponent(id)}`
+export const accountArchivePath = (id: string) => `${accountPath(id)}/archive`
