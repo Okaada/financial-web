@@ -1,7 +1,7 @@
 // Create/edit form for an investment (web-investments). On create: name, type, currency,
-// initialValue (cents, may be negative), and an investment-account link. On edit: type and
-// currency are immutable (read-only, not sent); the PUT body is { name, initialValue,
-// accountId } where accountId '' -> null clears the link. 400 surfaces error.message inline.
+// and an investment-account link. On edit: type and currency are immutable (read-only, not
+// sent); the PUT body is { name, accountId } where accountId '' -> null clears the link.
+// 400 surfaces error.message inline. initialValue is gone — record an aporte instead.
 
 import { useState, type FormEvent } from 'react'
 import { ApiError, UnauthenticatedError } from '../../api/client'
@@ -11,7 +11,6 @@ import type {
   InvestmentType,
   UpdateInvestmentInput,
 } from '../../api/types'
-import { centsToInput, parseToCentsSigned } from '../../lib/money'
 import { AccountSelect } from '../accounts/AccountSelect'
 import { INVESTMENT_TYPES } from './taxonomy'
 
@@ -29,9 +28,6 @@ export function InvestmentForm({ mode, initial, onCreate, onUpdate, onCancel }: 
   const [name, setName] = useState(initial?.name ?? '')
   const [type, setType] = useState<InvestmentType>(initial?.type ?? 'renda_fixa')
   const [currency, setCurrency] = useState(initial?.currency ?? DEFAULT_CURRENCY)
-  const [initialValue, setInitialValue] = useState(
-    initial ? centsToInput(initial.initialValue) : '',
-  )
   const [accountId, setAccountId] = useState(initial?.accountId ?? '')
 
   const [submitting, setSubmitting] = useState(false)
@@ -51,11 +47,6 @@ export function InvestmentForm({ mode, initial, onCreate, onUpdate, onCancel }: 
       setError('Informe a moeda (currency).')
       return
     }
-    const cents = parseToCentsSigned(initialValue)
-    if (cents === null) {
-      setError('Valor inicial inválido (centavos, ex.: 100,00 ou -100,00).')
-      return
-    }
 
     setSubmitting(true)
     try {
@@ -64,14 +55,12 @@ export function InvestmentForm({ mode, initial, onCreate, onUpdate, onCancel }: 
           name: name.trim(),
           type,
           currency: currency.trim(),
-          initialValue: cents,
         }
         if (accountId !== '') body.accountId = accountId
         await onCreate?.(body)
       } else {
         await onUpdate?.({
           name: name.trim(),
-          initialValue: cents,
           accountId: accountId === '' ? null : accountId,
         })
       }
@@ -131,18 +120,6 @@ export function InvestmentForm({ mode, initial, onCreate, onUpdate, onCancel }: 
           // currency is immutable on edit.
           <input type="text" value={currency} readOnly disabled />
         )}
-      </label>
-
-      <label>
-        Valor inicial (pode ser negativo)
-        <input
-          type="text"
-          inputMode="decimal"
-          placeholder="0,00"
-          value={initialValue}
-          onChange={(e) => setInitialValue(e.target.value)}
-          disabled={submitting}
-        />
       </label>
 
       <div className="field">

@@ -1,15 +1,4 @@
-# web-investments-batch
-
-## Purpose
-
-Definir a **criação de investimentos em lote** (grade), via `POST /api/investments/batch`:
-adicionar linhas (cada uma um investimento com `name`/`type`/`currency`/`accountId?`),
-escolher a conta de investimento (`kind=investment`) por linha, validar localmente e enviar
-com semântica **all-or-nothing** (CONTRACT §7): máx 100, array vazio rejeitado, e se um item
-for inválido o lote inteiro falha (`400` com `index`) sem gravar nada — a UI destaca a linha
-do índice. Valores em centavos.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Grade de criação de investimentos em lote
 
@@ -17,6 +6,8 @@ A tela SHALL oferecer uma criação em lote tipo grade, onde cada linha é um in
 os campos `name`, `type`, `currency` e `accountId?`. O campo `initialValue` NÃO SHALL
 ser incluído em nenhuma linha. A grade SHALL permitir escolher a conta de investimento
 (`kind === "investment"`, não arquivadas) por linha e validar localmente antes de enviar.
+
+> **Removed**: `initialValue` removido de cada linha da grade e do corpo enviado ao backend.
 
 #### Scenario: Adicionar linhas
 
@@ -54,17 +45,3 @@ A tela SHALL enviar via `POST /api/investments/batch` um **array** de itens (cad
 
 - **WHEN** o `400` não traz `index` (ex.: array vazio)
 - **THEN** a tela mostra a `error.message` geral, sem destacar uma linha
-
-### Requirement: Estados de UI no lote de investimentos
-
-A tela SHALL apresentar estados explícitos para enviando, erro e sem-sessão.
-
-#### Scenario: Enviando
-
-- **WHEN** o lote está sendo enviado
-- **THEN** a tela mostra progresso e evita envio duplicado
-
-#### Scenario: Sem-sessão
-
-- **WHEN** uma chamada retorna `401`
-- **THEN** o tratamento central marca "sem sessão" e o app exibe a tela de login
